@@ -1,0 +1,388 @@
+{
+  "examples": [
+    {
+      "name": "Multiple Gemini API Calls",
+      "description": "Execute 6 Gemini workflows in parallel with different prompts",
+      "configuration": {
+        "executionMode": "fromInput",
+        "workflowsField": "workflows",
+        "options": {
+          "continueOnFail": true,
+          "maxConcurrent": 6,
+          "resultAggregation": "array",
+          "includeMetadata": true,
+          "globalTimeout": 120
+        }
+      },
+      "inputData": {
+        "workflows": [
+          {
+            "workflowId": "gemini-analyzer",
+            "executionName": "Sales Analysis",
+            "inputData": {
+              "prompt": "Analyze Q4 2024 sales data and identify top performing products",
+              "context": "E-commerce retail",
+              "temperature": 0.7,
+              "maxTokens": 1000
+            },
+            "timeout": 30,
+            "retryCount": 2
+          },
+          {
+            "workflowId": "gemini-analyzer",
+            "executionName": "Market Trends",
+            "inputData": {
+              "prompt": "Identify emerging market trends in the technology sector",
+              "context": "2024 market data",
+              "temperature": 0.8,
+              "maxTokens": 1500
+            },
+            "timeout": 30,
+            "retryCount": 2
+          },
+          {
+            "workflowId": "gemini-analyzer",
+            "executionName": "Competitor Analysis",
+            "inputData": {
+              "prompt": "Compare our product features with top 3 competitors",
+              "context": "SaaS industry",
+              "temperature": 0.6,
+              "maxTokens": 2000
+            },
+            "timeout": 30,
+            "retryCount": 2
+          },
+          {
+            "workflowId": "gemini-translator",
+            "executionName": "Spanish Translation",
+            "inputData": {
+              "prompt": "Translate the executive summary to Spanish",
+              "sourceLanguage": "English",
+              "targetLanguage": "Spanish",
+              "preserveFormatting": true
+            },
+            "timeout": 20,
+            "retryCount": 1
+          },
+          {
+            "workflowId": "gemini-summarizer",
+            "executionName": "Report Summary",
+            "inputData": {
+              "prompt": "Create a 5-point executive summary",
+              "format": "bullet points",
+              "maxLength": 500
+            },
+            "timeout": 20,
+            "retryCount": 1
+          },
+          {
+            "workflowId": "gemini-predictor",
+            "executionName": "Q1 Forecast",
+            "inputData": {
+              "prompt": "Predict Q1 2025 performance based on current trends",
+              "dataPoints": ["sales", "growth", "market conditions"],
+              "confidence": "high"
+            },
+            "timeout": 40,
+            "retryCount": 3
+          }
+        ]
+      }
+    },
+    {
+      "name": "Data Processing Pipeline",
+      "description": "Process data from multiple sources simultaneously",
+      "configuration": {
+        "executionMode": "manual",
+        "options": {
+          "continueOnFail": false,
+          "maxConcurrent": 3,
+          "resultAggregation": "merged",
+          "includeMetadata": true,
+          "globalTimeout": 180
+        }
+      },
+      "manualWorkflows": [
+        {
+          "workflowId": "csv-processor",
+          "executionName": "Sales CSV Import",
+          "inputData": {
+            "filePath": "/data/sales_2024.csv",
+            "delimiter": ",",
+            "hasHeaders": true,
+            "validation": "strict"
+          },
+          "timeout": 60,
+          "retryCount": 1
+        },
+        {
+          "workflowId": "api-fetcher",
+          "executionName": "Customer API Sync",
+          "inputData": {
+            "endpoint": "https://api.crm.com/customers",
+            "method": "GET",
+            "headers": {
+              "Authorization": "Bearer {{$credentials.apiKey}}"
+            },
+            "pagination": true,
+            "pageSize": 100
+          },
+          "timeout": 90,
+          "retryCount": 3
+        },
+        {
+          "workflowId": "database-query",
+          "executionName": "Orders Database Query",
+          "inputData": {
+            "query": "SELECT * FROM orders WHERE created_at > '2024-01-01'",
+            "database": "production",
+            "format": "json"
+          },
+          "timeout": 60,
+          "retryCount": 2
+        }
+      ]
+    },
+    {
+      "name": "Multi-Service Health Check",
+      "description": "Check the status of multiple services in parallel",
+      "configuration": {
+        "executionMode": "fromInput",
+        "workflowsField": "services",
+        "options": {
+          "continueOnFail": true,
+          "maxConcurrent": 10,
+          "resultAggregation": "object",
+          "includeMetadata": true,
+          "globalTimeout": 30
+        }
+      },
+      "inputData": {
+        "services": [
+          {
+            "workflowId": "health-checker",
+            "executionName": "API Gateway",
+            "inputData": {
+              "url": "https://api.example.com/health",
+              "expectedStatus": 200,
+              "timeout": 5
+            }
+          },
+          {
+            "workflowId": "health-checker",
+            "executionName": "Database",
+            "inputData": {
+              "connectionString": "postgresql://localhost:5432/app",
+              "testQuery": "SELECT 1",
+              "timeout": 5
+            }
+          },
+          {
+            "workflowId": "health-checker",
+            "executionName": "Redis Cache",
+            "inputData": {
+              "host": "redis.example.com",
+              "port": 6379,
+              "command": "PING",
+              "timeout": 3
+            }
+          },
+          {
+            "workflowId": "health-checker",
+            "executionName": "Message Queue",
+            "inputData": {
+              "url": "amqp://rabbitmq.example.com",
+              "queue": "health-check",
+              "timeout": 5
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "Batch Email Campaign",
+      "description": "Send personalized emails to different segments simultaneously",
+      "configuration": {
+        "executionMode": "fromInput",
+        "workflowsField": "campaigns",
+        "options": {
+          "continueOnFail": true,
+          "maxConcurrent": 5,
+          "resultAggregation": "items",
+          "includeMetadata": true,
+          "globalTimeout": 600
+        }
+      },
+      "inputData": {
+        "campaigns": [
+          {
+            "workflowId": "email-sender",
+            "executionName": "VIP Customers",
+            "inputData": {
+              "segment": "vip",
+              "template": "vip-offer",
+              "subject": "Exclusive VIP Offer - 30% Off",
+              "recipients": 500,
+              "sendTime": "09:00"
+            }
+          },
+          {
+            "workflowId": "email-sender",
+            "executionName": "New Subscribers",
+            "inputData": {
+              "segment": "new-subscribers",
+              "template": "welcome",
+              "subject": "Welcome to Our Community!",
+              "recipients": 1200,
+              "sendTime": "10:00"
+            }
+          },
+          {
+            "workflowId": "email-sender",
+            "executionName": "Inactive Users",
+            "inputData": {
+              "segment": "inactive-30days",
+              "template": "re-engagement",
+              "subject": "We Miss You! Here's 20% Off",
+              "recipients": 3000,
+              "sendTime": "14:00"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "Web Scraping Orchestra",
+      "description": "Scrape multiple websites simultaneously for competitive analysis",
+      "configuration": {
+        "executionMode": "manual",
+        "options": {
+          "continueOnFail": true,
+          "maxConcurrent": 3,
+          "resultAggregation": "array",
+          "includeMetadata": true,
+          "globalTimeout": 120
+        }
+      },
+      "manualWorkflows": [
+        {
+          "workflowId": "web-scraper",
+          "executionName": "Competitor A Pricing",
+          "inputData": {
+            "url": "https://competitor-a.com/pricing",
+            "selectors": {
+              "prices": ".price-tag",
+              "features": ".feature-list li",
+              "plans": ".plan-card"
+            },
+            "waitForSelector": ".price-tag",
+            "screenshot": true
+          }
+        },
+        {
+          "workflowId": "web-scraper",
+          "executionName": "Competitor B Products",
+          "inputData": {
+            "url": "https://competitor-b.com/products",
+            "selectors": {
+              "products": ".product-item",
+              "names": ".product-name",
+              "descriptions": ".product-desc"
+            },
+            "pagination": true,
+            "maxPages": 5
+          }
+        },
+        {
+          "workflowId": "web-scraper",
+          "executionName": "Industry News",
+          "inputData": {
+            "url": "https://industry-news.com/latest",
+            "selectors": {
+              "articles": "article.news-item",
+              "titles": "h2.article-title",
+              "dates": ".publish-date",
+              "summaries": ".article-summary"
+            },
+            "limit": 20
+          }
+        }
+      ]
+    }
+  ],
+  "testData": {
+    "simple": {
+      "workflows": [
+        {
+          "workflowId": "test-workflow-1",
+          "inputData": { "test": true }
+        },
+        {
+          "workflowId": "test-workflow-2",
+          "inputData": { "test": true }
+        }
+      ]
+    },
+    "withErrors": {
+      "workflows": [
+        {
+          "workflowId": "working-workflow",
+          "inputData": { "shouldWork": true }
+        },
+        {
+          "workflowId": "failing-workflow",
+          "inputData": { "shouldFail": true }
+        },
+        {
+          "workflowId": "timeout-workflow",
+          "inputData": { "delay": 100000 },
+          "timeout": 1
+        }
+      ]
+    },
+    "stress": {
+      "workflows": [
+        {
+          "workflowId": "stress-test",
+          "inputData": { "index": 1 }
+        },
+        {
+          "workflowId": "stress-test",
+          "inputData": { "index": 2 }
+        },
+        {
+          "workflowId": "stress-test",
+          "inputData": { "index": 3 }
+        },
+        {
+          "workflowId": "stress-test",
+          "inputData": { "index": 4 }
+        },
+        {
+          "workflowId": "stress-test",
+          "inputData": { "index": 5 }
+        },
+        {
+          "workflowId": "stress-test",
+          "inputData": { "index": 6 }
+        },
+        {
+          "workflowId": "stress-test",
+          "inputData": { "index": 7 }
+        },
+        {
+          "workflowId": "stress-test",
+          "inputData": { "index": 8 }
+        },
+        {
+          "workflowId": "stress-test",
+          "inputData": { "index": 9 }
+        },
+        {
+          "workflowId": "stress-test",
+          "inputData": { "index": 10 }
+        }
+      ]
+    }
+  }
+}
