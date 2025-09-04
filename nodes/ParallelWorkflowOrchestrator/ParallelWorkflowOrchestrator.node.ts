@@ -6,6 +6,9 @@ import {
   IDataObject,
   NodeOperationError,
   NodeConnectionType,
+  ILoadOptionsFunctions,
+  INodeListSearchResult,
+  INodeListSearchItems,
 } from 'n8n-workflow';
 
 export class ParallelWorkflowOrchestrator implements INodeType {
@@ -24,24 +27,65 @@ export class ParallelWorkflowOrchestrator implements INodeType {
     outputs: [NodeConnectionType.Main],
     properties: [
       {
+        displayName: '',
+        name: 'notice',
+        type: 'notice',
+        default: 'Select workflows from the dropdown to execute them in parallel. All selected workflows will run simultaneously for better performance.',
+      },
+      {
         displayName: 'Execution Mode',
         name: 'executionMode',
         type: 'options',
         options: [
           {
+            name: 'Simple (Select Workflows)',
+            value: 'simple',
+            description: 'Select workflows from dropdown - easiest to use',
+          },
+          {
             name: 'Manual Configuration',
             value: 'manual',
-            description: 'Configure workflows to execute in the node settings',
+            description: 'Configure each workflow with custom settings',
           },
           {
             name: 'From Input Data',
             value: 'fromInput',
-            description: 'Use workflow configurations from input data',
+            description: 'Use workflow list from input data',
           },
         ],
-        default: 'manual',
+        default: 'simple',
         noDataExpression: true,
       },
+      // Simple mode - just select workflows
+      {
+        displayName: 'Workflows to Execute',
+        name: 'simpleWorkflows',
+        type: 'workflowSelector',
+        typeOptions: {
+          multipleValues: true,
+        },
+        displayOptions: {
+          show: {
+            executionMode: ['simple'],
+          },
+        },
+        default: [],
+        required: true,
+        description: 'Select the workflows to execute in parallel',
+      },
+      {
+        displayName: 'Pass Input Data to Workflows',
+        name: 'passInputData',
+        type: 'boolean',
+        displayOptions: {
+          show: {
+            executionMode: ['simple'],
+          },
+        },
+        default: true,
+        description: 'Whether to pass the current input data to all workflows',
+      },
+      // Manual mode - detailed configuration
       {
         displayName: 'Workflow Executions',
         name: 'workflowExecutions',
@@ -65,17 +109,18 @@ export class ParallelWorkflowOrchestrator implements INodeType {
               {
                 displayName: 'Workflow',
                 name: 'workflowId',
-                type: 'string',
+                type: 'workflowSelector',
                 default: '',
                 required: true,
-                description: 'The workflow to execute. Can be name or ID.',
+                description: 'Select the workflow to execute',
               },
               {
                 displayName: 'Execution Name',
                 name: 'executionName',
                 type: 'string',
                 default: '',
-                description: 'Name to identify this execution in the results',
+                placeholder: 'e.g., Sales Analysis',
+                description: 'Optional name to identify this execution in the results',
               },
               {
                 displayName: 'Input Data',
@@ -83,32 +128,45 @@ export class ParallelWorkflowOrchestrator implements INodeType {
                 type: 'json',
                 default: '{}',
                 description: 'JSON data to pass to the workflow',
-              },
-              {
-                displayName: 'Timeout (seconds)',
-                name: 'timeout',
-                type: 'number',
-                default: 60,
-                description: 'Maximum time to wait for this workflow',
                 typeOptions: {
-                  minValue: 1,
+                  rows: 4,
                 },
               },
               {
-                displayName: 'Retry Count',
-                name: 'retryCount',
-                type: 'number',
-                default: 0,
-                description: 'Number of times to retry on failure',
-                typeOptions: {
-                  minValue: 0,
-                  maxValue: 5,
-                },
+                displayName: 'Additional Settings',
+                name: 'additionalSettings',
+                type: 'collection',
+                placeholder: 'Add Setting',
+                default: {},
+                options: [
+                  {
+                    displayName: 'Timeout (seconds)',
+                    name: 'timeout',
+                    type: 'number',
+                    default: 60,
+                    description: 'Maximum time to wait for this workflow',
+                    typeOptions: {
+                      minValue: 1,
+                    },
+                  },
+                  {
+                    displayName: 'Retry Count',
+                    name: 'retryCount',
+                    type: 'number',
+                    default: 0,
+                    description: 'Number of times to retry on failure',
+                    typeOptions: {
+                      minValue: 0,
+                      maxValue: 5,
+                    },
+                  },
+                ],
               },
             ],
           },
         ],
       },
+      // From input mode
       {
         displayName: 'Workflows Field',
         name: 'workflowsField',
@@ -120,14 +178,20 @@ export class ParallelWorkflowOrchestrator implements INodeType {
         },
         default: 'workflows',
         required: true,
+        placeholder: 'workflows',
         description: 'Name of the field containing workflow configurations in input data',
+        hint: 'Input should be an array of workflow configurations with workflowId and optional inputData',
       },
+      // Common Options
       {
         displayName: 'Options',
         name: 'options',
         type: 'collection',
         placeholder: 'Add Option',
-        default: {},
+        default: {
+          continueOnFail: true,
+          resultAggregation: 'array',
+        },
         options: [
           {
             displayName: 'Continue On Fail',
@@ -135,16 +199,6 @@ export class ParallelWorkflowOrchestrator implements INodeType {
             type: 'boolean',
             default: true,
             description: 'Whether to continue executing other workflows if one fails',
-          },
-          {
-            displayName: 'Max Concurrent',
-            name: 'maxConcurrent',
-            type: 'number',
-            default: 0,
-            description: 'Maximum number of workflows to execute simultaneously. 0 for unlimited.',
-            typeOptions: {
-              minValue: 0,
-            },
           },
           {
             displayName: 'Result Aggregation',
@@ -157,14 +211,14 @@ export class ParallelWorkflowOrchestrator implements INodeType {
                 description: 'Return results as an ordered array',
               },
               {
-                name: 'Object (Keyed)',
+                name: 'Object (Named)',
                 value: 'object',
-                description: 'Return results as an object with execution names as keys',
+                description: 'Return results as an object with workflow names as keys',
               },
               {
                 name: 'Merged',
                 value: 'merged',
-                description: 'Deep merge all results into a single object',
+                description: 'Merge all results into a single object',
               },
               {
                 name: 'Individual Items',
@@ -173,47 +227,105 @@ export class ParallelWorkflowOrchestrator implements INodeType {
               },
             ],
             default: 'array',
-            description: 'How to aggregate the results from all workflows',
+            description: 'How to combine the results from all workflows',
           },
           {
-            displayName: 'Include Execution Metadata',
-            name: 'includeMetadata',
-            type: 'boolean',
-            default: false,
-            description: 'Whether to include execution time and status in results',
-          },
-          {
-            displayName: 'Global Timeout (seconds)',
-            name: 'globalTimeout',
-            type: 'number',
-            default: 300,
-            description: 'Maximum time to wait for all workflows to complete',
-            typeOptions: {
-              minValue: 1,
-            },
+            displayName: 'Advanced',
+            name: 'advanced',
+            type: 'collection',
+            placeholder: 'Add Advanced Option',
+            default: {},
+            options: [
+              {
+                displayName: 'Max Concurrent',
+                name: 'maxConcurrent',
+                type: 'number',
+                default: 0,
+                description: 'Maximum number of workflows to execute simultaneously. 0 for unlimited.',
+                typeOptions: {
+                  minValue: 0,
+                },
+                hint: 'Limit this if you have resource constraints',
+              },
+              {
+                displayName: 'Include Execution Metadata',
+                name: 'includeMetadata',
+                type: 'boolean',
+                default: false,
+                description: 'Whether to include execution time and status in results',
+              },
+              {
+                displayName: 'Global Timeout (seconds)',
+                name: 'globalTimeout',
+                type: 'number',
+                default: 300,
+                description: 'Maximum time to wait for all workflows to complete',
+                typeOptions: {
+                  minValue: 1,
+                },
+              },
+            ],
           },
         ],
       },
     ],
   };
 
+  methods = {
+    listSearch: {
+      async searchWorkflows(this: ILoadOptionsFunctions): Promise<INodeListSearchResult> {
+        // This method would be called to populate the workflow selector
+        // In a real implementation, this would fetch the list of workflows
+        // For now, returning a placeholder
+        return {
+          results: [] as INodeListSearchItems[],
+        };
+      },
+    },
+  };
+
   async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
     const items = this.getInputData();
     const executionMode = this.getNodeParameter('executionMode', 0) as string;
     const options = this.getNodeParameter('options', 0) as IDataObject;
+    const advanced = (options.advanced as IDataObject) || {};
     
     const continueOnFail = options.continueOnFail !== false;
-    const maxConcurrent = (options.maxConcurrent as number) || 0;
     const resultAggregation = (options.resultAggregation as string) || 'array';
-    const includeMetadata = options.includeMetadata === true;
-    const globalTimeout = ((options.globalTimeout as number) || 300) * 1000;
+    const maxConcurrent = (advanced.maxConcurrent as number) || 0;
+    const includeMetadata = advanced.includeMetadata === true;
+    const globalTimeout = ((advanced.globalTimeout as number) || 300) * 1000;
 
     let workflowConfigs: any[] = [];
 
     // Get workflow configurations based on execution mode
-    if (executionMode === 'manual') {
+    if (executionMode === 'simple') {
+      // Simple mode - just workflow IDs with same input data
+      const simpleWorkflows = this.getNodeParameter('simpleWorkflows', 0) as string[];
+      const passInputData = this.getNodeParameter('passInputData', 0) as boolean;
+      
+      workflowConfigs = simpleWorkflows.map((workflowId, index) => ({
+        workflowId,
+        executionName: `Workflow_${index + 1}`,
+        inputData: passInputData ? items[0]?.json || {} : {},
+        timeout: 60,
+        retryCount: 0,
+      }));
+    } else if (executionMode === 'manual') {
+      // Manual mode with detailed configuration
       const workflowExecutions = this.getNodeParameter('workflowExecutions', 0) as any;
-      workflowConfigs = workflowExecutions.workflowValues || [];
+      const workflows = workflowExecutions.workflowValues || [];
+      
+      workflowConfigs = workflows.map((workflow: any) => {
+        const additionalSettings = workflow.additionalSettings || {};
+        return {
+          workflowId: workflow.workflowId,
+          executionName: workflow.executionName || workflow.workflowId,
+          inputData: workflow.inputData,
+          timeout: additionalSettings.timeout || 60,
+          retryCount: additionalSettings.retryCount || 0,
+        };
+      });
     } else {
       // From input data
       const workflowsField = this.getNodeParameter('workflowsField', 0) as string;
@@ -386,7 +498,7 @@ export class ParallelWorkflowOrchestrator implements INodeType {
     }
 
     // Add summary if metadata is included
-    if (includeMetadata) {
+    if (includeMetadata && resultAggregation !== 'items') {
       const summary = {
         totalExecutions: results.length,
         successful: results.filter(r => r.success).length,
@@ -394,9 +506,7 @@ export class ParallelWorkflowOrchestrator implements INodeType {
         totalTime: results.reduce((sum, r) => sum + (r.executionTime as number || 0), 0),
       };
       
-      if (resultAggregation !== 'items') {
-        returnData[0].json.summary = summary;
-      }
+      returnData[0].json.summary = summary;
     }
 
     return [returnData];

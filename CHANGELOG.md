@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2025-09-05
+
+### Added
+- **Workflow Selector Dropdown**: Changed from text input to `workflowSelector` type for easy workflow selection
+- **Simple Mode**: New default mode that just requires selecting workflows from a dropdown
+- **Improved UI**: Added helpful notice at the top, reorganized options for better usability
+- **Nested Advanced Options**: Hidden complexity under collapsible sections
+
+### Changed
+- **BREAKING**: Changed workflow configuration structure - manual mode now uses `workflowSelector` instead of string input
+- Default execution mode is now 'simple' instead of 'manual'
+- Improved field descriptions and placeholders throughout
+- Reorganized options into logical groups with better defaults
+
+### Improved
+- User experience significantly enhanced - no need to know workflow IDs
+- Cleaner interface with advanced options hidden by default
+- Better error messages and hints
+
 ## [Unreleased]
 
 ### Added
