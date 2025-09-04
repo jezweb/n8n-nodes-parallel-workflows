@@ -1,11 +1,30 @@
 {
   "examples": [
     {
-      "name": "Multiple Gemini API Calls",
-      "description": "Execute 6 Gemini workflows in parallel with different prompts",
+      "name": "Simple Mode - Quick Parallel Execution",
+      "description": "The easiest way to run multiple workflows in parallel",
       "configuration": {
-        "executionMode": "fromInput",
-        "workflowsField": "workflows",
+        "executionMode": "simple",
+        "simpleWorkflows": [
+          "Gemini Analysis Workflow",
+          "ChatGPT Summary Workflow",
+          "Claude Review Workflow",
+          "Data Processing Workflow"
+        ],
+        "passInputData": true,
+        "options": {
+          "continueOnFail": true,
+          "resultAggregation": "array"
+        }
+      },
+      "note": "Just select workflows from the dropdown and execute!"
+    },
+    {
+      "name": "Multiple Gemini API Calls",
+      "description": "Execute 6 Gemini workflows in parallel with different prompts using Manual mode",
+      "configuration": {
+        "executionMode": "manual",
+        "workflowExecutions": "Configure each workflow with dropdown selector",
         "options": {
           "continueOnFail": true,
           "maxConcurrent": 6,

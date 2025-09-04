@@ -1,15 +1,17 @@
 # Development Scratchpad
 
 ## Current Focus
-Building n8n community node for parallel workflow orchestration
+n8n community node for parallel workflow orchestration - v0.2.0 Released!
 
 ## Key Requirements
 1. ✅ No limit on number of workflows (dynamic)
-2. ⬜ True parallel execution using Promise.all
-3. ⬜ Configurable input (manual or from data)
-4. ⬜ Error resilience
-5. ⬜ Result aggregation options
-6. ⬜ Progress tracking
+2. ✅ True parallel execution using Promise.all
+3. ✅ Configurable input (manual or from data)
+4. ✅ Error resilience
+5. ✅ Result aggregation options
+6. ✅ Progress tracking
+7. ✅ Workflow selector dropdown (v0.2.0)
+8. ✅ Simple mode for easy use (v0.2.0)
 
 ## Technical Decisions
 
@@ -139,9 +141,23 @@ interface IExecutionResult {
 3. Batch similar workflows together
 4. Resource pooling for execution contexts
 
+## Version 0.2.0 Changes
+
+### Key Improvements
+1. **workflowSelector Type**: Changed from string to dropdown selection
+2. **Simple Mode**: New default mode for quick workflow selection
+3. **UI Reorganization**: Advanced options nested under collections
+4. **Better UX**: Helpful notices, improved descriptions
+5. **Breaking Change**: Manual mode now uses selector instead of string
+
+### User Feedback Addressed
+- "Hard to know what to do" - Added Simple mode
+- "Too technical" - Hid advanced options
+- "Need to know workflow IDs" - Added dropdown selector
+
 ## Future Features
 
-### V2 Ideas
+### V3 Ideas
 1. **Dependency Management**: Define execution order/dependencies
 2. **Conditional Execution**: Skip workflows based on previous results  
 3. **Load Balancing**: Distribute to multiple n8n instances
@@ -164,13 +180,23 @@ interface IExecutionResult {
 
 ## Development Timeline
 
+### Version 0.1.0 (Completed)
 - [x] Project setup (30 min)
 - [x] Documentation structure (20 min)
-- [ ] Core node implementation (1 hr)
-- [ ] Error handling (30 min)
-- [ ] Testing (1 hr)
-- [ ] Examples and docs (30 min)
-- [ ] Publishing prep (20 min)
+- [x] Core node implementation (1 hr)
+- [x] Error handling (30 min)
+- [x] Testing (1 hr)
+- [x] Examples and docs (30 min)
+- [x] Publishing prep (20 min)
+
+### Version 0.2.0 (Completed) - 2025-09-05
+- [x] Research workflow selector implementation
+- [x] Replace string input with workflowSelector type
+- [x] Add Simple mode as default
+- [x] Reorganize UI with nested options
+- [x] Improve descriptions and add notices
+- [x] Update documentation
+- [x] Publish to npm
 
 ## Commands Reference
 
