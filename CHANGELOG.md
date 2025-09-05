@@ -5,6 +5,77 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.3] - 2025-09-05
+
+### Fixed
+- **Additional Data Field UI**: Changed from JSON editor to single-line string field
+  - Field now appears clean and empty by default (no pre-filled `{}`)
+  - Matches the appearance of other n8n node fields
+  - Still supports full expression functionality and drag-and-drop
+
+### Improved
+- Enhanced Additional Data parsing to handle both JSON and plain values
+- Better documentation for expression usage examples
+- Cleaner user interface matching n8n design patterns
+
+## [0.4.2] - 2025-09-05
+
+### Added
+- **Expression Support**: Added "Additional Data" field to each webhook in Simple (Structured) mode
+  - Supports n8n expressions with {{ $json.field }} syntax
+  - Drag-and-drop support from input schema
+  - Allows passing different data to each webhook
+  - Merges with main input data (additional data takes precedence)
+
+### Improved
+- Enhanced flexibility for passing dynamic data to webhooks
+- Better support for complex workflow scenarios where each webhook needs specific data
+
+## [0.4.1] - 2025-09-05
+
+### Changed
+- Removed outdated breaking changes warnings from README
+- Cleaned up migration section that's no longer relevant
+
+### Documentation
+- Streamlined README for better user experience
+- Focused on current features rather than historical changes
+
+## [0.4.0] - 2025-09-05
+
+### Added
+- **Authentication Support**: Full authentication support for webhook calls
+  - Header authentication with custom header names
+  - Bearer token authentication
+  - Basic authentication (username/password)
+  - Per-webhook authentication in Simple (Structured) mode
+  - Global authentication option to use same auth for all webhooks
+- Password field masking for sensitive authentication data
+- Authentication fields dynamically show based on selected auth type
+
+### Improved
+- Enhanced security for webhook calls with protected endpoints
+- Better support for enterprise webhook integrations
+
+## [0.3.3] - 2025-09-05
+
+### Fixed
+- Icon now displays properly using embedded SVG file instead of FontAwesome reference
+- Added sitemap.svg file to ensure icon shows in all n8n installations
+
+## [0.3.2] - 2025-09-05
+
+### Added
+- New "Simple (Structured)" execution mode for individual webhook configuration
+- Dynamic webhook list with "Add Webhook" button
+- Per-webhook settings: custom name and timeout
+- Improved subtitle display for all execution modes
+
+### Improved
+- Better user experience with structured webhook input option
+- Maintained backward compatibility with existing simple mode
+- Users can now choose between quick paste or structured input methods
+
 ## [0.3.1] - 2025-09-05
 
 ### Fixed

@@ -1,15 +1,8 @@
 # n8n-nodes-parallel-workflows
 
-⚡ **Version 0.3.0** - Webhook-based parallel execution!
+⚡ **Version 0.4.3** - Expression support with improved UI!
 
 This is an n8n community node that lets you execute multiple webhook URLs in parallel, perfect for orchestrating complex workflow patterns and dramatically improving performance.
-
-## 🚨 Breaking Changes in v0.3.0
-
-- **Complete Architecture Change**: Now uses webhook URLs instead of workflow IDs
-- **No API Required**: Removed dependency on n8n API credentials
-- **Simpler Setup**: Just paste webhook URLs - no configuration needed
-- **More Reliable**: Uses n8n's standard webhook system
 
 ## Features
 
@@ -143,6 +136,62 @@ Check multiple services at once:
 - Set Result Aggregation to "Object (Named)"
 - Get instant status of all services
 
+## Authentication (New in v0.4.0)
+
+The node now supports authentication for secured webhook endpoints:
+
+### Authentication Methods
+
+| Method | Description | Use Case |
+|--------|-------------|----------|
+| **None** | No authentication | Public webhooks |
+| **Header Auth** | Custom header with API key | Most REST APIs |
+| **Bearer Token** | Authorization: Bearer token | OAuth2, JWT tokens |
+| **Basic Auth** | Username and password | Legacy systems |
+
+### Simple (Structured) Mode Features
+
+#### Per-Webhook Authentication
+Each webhook can have its own authentication settings:
+1. Select authentication type for each webhook
+2. Configure the required fields (token, username, etc.)
+3. Different webhooks can use different authentication methods
+
+#### Global Authentication
+Use the same authentication for all webhooks:
+1. Enable "Use Same Auth for All Webhooks"
+2. Configure authentication once
+3. All webhooks will use the same credentials
+
+#### Dynamic Data with Expressions
+Pass different data to each webhook using n8n expressions:
+1. Use the "Additional Data" field for each webhook
+2. Drag and drop fields from the input schema directly into the field
+3. Use expressions like `{{ $json.objectKey }}` to reference input data
+4. Enter JSON objects for multiple values: `{"key": "{{ $json.field }}", "custom": "value"}`
+5. Additional data is merged with main input (overrides on conflict)
+
+Example Additional Data:
+- Single expression: `{{ $json.pdfKey }}`
+- JSON with expressions: `{"documentId": "{{ $json.pdfKey }}", "timestamp": "{{ $now }}"}`
+- Plain value: `custom-value-123`
+
+### Example Configurations
+
+**Header Authentication:**
+- Authentication: Header Auth
+- Header Name: `X-API-Key`
+- Token/Key: `your-api-key-here`
+
+**Bearer Token:**
+- Authentication: Bearer Token
+- Token/Key: `your-jwt-token-here`
+
+**Basic Authentication:**
+- Authentication: Basic Auth
+- Username: `user@example.com`
+- Password: `secure-password`
+
 ## Configuration Options
 
 ### Execution Modes
@@ -205,30 +254,6 @@ Check multiple services at once:
 }
 ```
 
-## Migration from v0.2.x
-
-### Breaking Changes
-
-This version completely changes how the node works:
-
-**Old (v0.2.x):**
-- Required n8n API credentials
-- Used workflow IDs
-- Complex API setup
-
-**New (v0.3.0):**
-- No credentials needed
-- Uses webhook URLs
-- Simple copy/paste setup
-
-### How to Migrate
-
-1. **Update your sub-workflows**: Add Webhook trigger nodes
-2. **Activate the workflows** to generate webhook URLs
-3. **Copy webhook URLs** from each workflow
-4. **Update Parallel Orchestrator**: Replace workflow IDs with webhook URLs
-5. **Remove API credentials** - no longer needed
-
 ## Performance Tips
 
 1. **Use Simple Mode** when all webhooks need the same input data
@@ -290,11 +315,11 @@ MIT - See [LICENSE](LICENSE) file
 
 See [CHANGELOG.md](CHANGELOG.md) for full version history.
 
-### Latest Version (0.3.0)
-- Complete rewrite to use webhook URLs
-- Removed API credential requirements
-- Simplified user experience
-- More reliable execution
+### Latest Version (0.4.3)
+- Improved Additional Data field UI - clean single-line input
+- Expression support with drag-and-drop from input schema  
+- Supports both JSON objects and plain values
+- Enhanced parsing for flexible data input
 
 ---
 

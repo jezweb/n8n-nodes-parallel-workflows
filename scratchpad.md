@@ -1,126 +1,319 @@
 # Development Scratchpad
 
-## Version 0.3.0 - Webhook-Based Parallel Workflow Orchestrator
+## Version 0.4.0 - Webhook Authentication Support
 
 ### Date: 2025-09-05
 
-## Critical Pivot: REST API → Webhook URLs
+## Feature: Add Authentication Support for Webhooks
 
-### Problem Summary
-1. **API Doesn't Work**: The `/api/v1/workflows/{id}/activate` endpoint doesn't exist in n8n's public API
-2. **Selector Issues**: The `workflowSelector` returns objects with metadata, not simple strings
-3. **Complexity**: API authentication adds unnecessary complexity for users
+### Implementation Plan
 
-### Solution: Direct Webhook URL Execution
+Add support for multiple authentication methods to secure webhook calls:
+- Header authentication (API keys)
+- Bearer token authentication
+- Basic authentication
+- Query parameter authentication (optional)
 
-Users will provide webhook URLs from their workflows' Webhook trigger nodes. The Parallel Workflow Orchestrator will:
-1. Execute all webhook URLs simultaneously via HTTP POST
-2. Wait for all responses
-3. Aggregate and return results
+### Authentication Options
 
-This is simpler, more reliable, and uses n8n's intended webhook system.
+#### 1. Authentication Types
+```typescript
+options: [
+  { name: 'None', value: 'none' },
+  { name: 'Header Auth', value: 'header' },
+  { name: 'Bearer Token', value: 'bearer' },
+  { name: 'Basic Auth', value: 'basic' },
+]
+```
 
-## Implementation Plan
-
-### Phase 1: Remove API System ✅
-- Delete `credentials/N8nApi.credentials.ts`
-- Remove credential registration from `package.json`
-- Remove credential requirements from node
-
-### Phase 2: Update Node Configuration
-
-#### Simple Mode - New Design:
+#### 2. Simple (Structured) Mode - Per Webhook Auth
+Add authentication fields to each webhook configuration:
 ```typescript
 {
-  displayName: 'Webhook URLs',
-  name: 'webhookUrls',
+  displayName: 'Authentication',
+  name: 'authentication',
+  type: 'options',
+  default: 'none',
+  options: [
+    { name: 'None', value: 'none' },
+    { name: 'Header Auth', value: 'header' },
+    { name: 'Bearer Token', value: 'bearer' },
+    { name: 'Basic Auth', value: 'basic' },
+  ],
+},
+{
+  displayName: 'Header Name',
+  name: 'authHeaderName',
+  type: 'string',
+  default: 'X-API-Key',
+  placeholder: 'e.g., X-API-Key, Authorization',
+  displayOptions: {
+    show: {
+      authentication: ['header'],
+    },
+  },
+  description: 'Name of the header to use for authentication',
+},
+{
+  displayName: 'Token/Key',
+  name: 'authValue',
   type: 'string',
   typeOptions: {
-    rows: 5,
+    password: true,
   },
-  placeholder: 'https://your-n8n.com/webhook/abc-123\nhttps://your-n8n.com/webhook/def-456',
-  description: 'Enter webhook URLs from your workflows (one per line)',
   default: '',
-  required: true,
-}
+  displayOptions: {
+    show: {
+      authentication: ['header', 'bearer'],
+    },
+  },
+  description: 'The authentication token or API key',
+},
+{
+  displayName: 'Username',
+  name: 'username',
+  type: 'string',
+  default: '',
+  displayOptions: {
+    show: {
+      authentication: ['basic'],
+    },
+  },
+},
+{
+  displayName: 'Password',
+  name: 'password',
+  type: 'string',
+  typeOptions: {
+    password: true,
+  },
+  default: '',
+  displayOptions: {
+    show: {
+      authentication: ['basic'],
+    },
+  },
+},
 ```
 
-#### Manual Mode - Updated Fields:
+#### 3. Global Authentication Option
+Add option to use same auth for all webhooks:
 ```typescript
 {
-  displayName: 'Webhook URL',
-  name: 'webhookUrl',
-  type: 'string',
-  placeholder: 'https://your-n8n.com/webhook/abc-123',
-  description: 'The webhook URL from your workflow\'s Webhook trigger node',
-  default: '',
-  required: true,
+  displayName: 'Use Same Auth for All Webhooks',
+  name: 'useGlobalAuth',
+  type: 'boolean',
+  default: false,
+  displayOptions: {
+    show: {
+      executionMode: ['simple', 'simpleStructured'],
+    },
+  },
+  description: 'Use the same authentication for all webhook calls',
+},
+// Global auth fields (same structure as per-webhook)
+{
+  displayName: 'Global Authentication',
+  name: 'globalAuth',
+  type: 'options',
+  displayOptions: {
+    show: {
+      useGlobalAuth: [true],
+    },
+  },
+  // ... same auth options
 }
 ```
 
-### Phase 3: Core Execution Logic
-
+#### 4. Execution Logic Update
 ```typescript
-// Simple webhook execution function
-const executeWebhook = async (config: any, index: number) => {
-  const startTime = Date.now();
-  const executionName = config.executionName || `Webhook_${index + 1}`;
+const executeWorkflow = async (config: any, index: number) => {
+  // ... existing code ...
   
-  try {
-    // Parse input data if string
-    let inputData = config.inputData;
-    if (typeof inputData === 'string') {
-      try {
-        inputData = JSON.parse(inputData);
-      } catch (e) {
-        inputData = {};
-      }
-    }
+  // Build request options
+  const requestOptions: any = {
+    method: 'POST' as const,
+    url: config.webhookUrl,
+    body: inputData,
+    json: true,
+    headers: {},
+  };
 
-    // Create timeout promise
-    const timeoutPromise = new Promise<never>((_, reject) => {
-      setTimeout(() => reject(new Error(`Timeout after ${config.timeout} seconds`)), config.timeout * 1000);
-    });
-
-    // Execute webhook
-    const executionPromise = this.helpers.httpRequest({
-      method: 'POST' as const,
-      url: config.webhookUrl,
-      body: inputData,
-      json: true,
-    });
-
-    // Race between execution and timeout
-    const result = await Promise.race([executionPromise, timeoutPromise]);
-
-    return {
-      success: true,
-      webhookUrl: config.webhookUrl,
-      name: executionName,
-      data: result as IDataObject,
-      executionTime: includeMetadata ? Date.now() - startTime : undefined,
-      timestamp: includeMetadata ? new Date().toISOString() : undefined,
-    };
-  } catch (error: any) {
-    if (!continueOnFail) throw error;
-    
-    return {
-      success: false,
-      webhookUrl: config.webhookUrl,
-      name: executionName,
-      error: error.message || 'Unknown error',
-      executionTime: includeMetadata ? Date.now() - startTime : undefined,
-      timestamp: includeMetadata ? new Date().toISOString() : undefined,
-    };
+  // Apply authentication
+  const auth = config.authentication || 'none';
+  
+  if (auth === 'header') {
+    requestOptions.headers[config.authHeaderName || 'X-API-Key'] = config.authValue;
+  } else if (auth === 'bearer') {
+    requestOptions.headers['Authorization'] = `Bearer ${config.authValue}`;
+  } else if (auth === 'basic') {
+    // Use built-in basic auth support
+    const credentials = Buffer.from(`${config.username}:${config.password}`).toString('base64');
+    requestOptions.headers['Authorization'] = `Basic ${credentials}`;
   }
+
+  // Execute with auth
+  const executionPromise = this.helpers.httpRequest(requestOptions);
+  
+  // ... rest of execution logic
 };
 ```
 
-### Phase 4: Configuration Processing
-
+#### 5. Configuration Processing
 ```typescript
-// Simple mode - parse webhook URLs
+// In simpleStructured mode
+workflowConfigs = webhooks.map((webhook: any, index: number) => {
+  const baseConfig = {
+    webhookUrl: webhook.url,
+    executionName: webhook.name || `Webhook_${index + 1}`,
+    inputData: passInputData ? items[0]?.json || {} : {},
+    timeout: webhook.timeout || 60,
+    retryCount: 0,
+  };
+  
+  // Apply authentication
+  if (useGlobalAuth) {
+    // Use global auth settings
+    baseConfig.authentication = globalAuth;
+    baseConfig.authHeaderName = globalAuthHeaderName;
+    baseConfig.authValue = globalAuthValue;
+    baseConfig.username = globalUsername;
+    baseConfig.password = globalPassword;
+  } else if (webhook.authentication && webhook.authentication !== 'none') {
+    // Use per-webhook auth
+    baseConfig.authentication = webhook.authentication;
+    baseConfig.authHeaderName = webhook.authHeaderName;
+    baseConfig.authValue = webhook.authValue;
+    baseConfig.username = webhook.username;
+    baseConfig.password = webhook.password;
+  }
+  
+  return baseConfig;
+});
+```
+
+### UI/UX Considerations
+
+1. **Security**: Mark all auth fields with `typeOptions: { password: true }` to hide sensitive data
+2. **Defaults**: Default to 'none' for auth to maintain backward compatibility
+3. **Validation**: Add validation for required auth fields
+4. **Help Text**: Clear descriptions for each auth type
+
+### Testing Scenarios
+
+1. **No Authentication**: Verify existing webhooks work without auth
+2. **Header Auth**: Test with custom header names and API keys
+3. **Bearer Token**: Test standard Authorization: Bearer format
+4. **Basic Auth**: Test with username/password combinations
+5. **Global Auth**: Test applying same auth to all webhooks
+6. **Mixed Auth**: Test different auth per webhook in structured mode
+
+### Version Strategy
+
+- **0.4.0**: Minor version bump for new feature
+- Non-breaking: Existing workflows continue to work
+- Future: Consider credential storage in v0.5.0
+
+---
+
+## Version 0.3.2 - Enhanced Simple Mode with Dynamic Webhook List
+
+### Date: 2025-09-05
+
+## Feature: Add "Simple (Structured)" Mode - Option B
+
+### Decision
+Add a new execution mode "Simple (Structured)" alongside the existing simple mode to maintain backward compatibility.
+
+### Implementation Plan
+
+#### 1. Execution Modes
+```typescript
+options: [
+  {
+    name: 'Simple (Webhooks)',
+    value: 'simple',
+    description: 'Paste webhook URLs - easiest to use',
+  },
+  {
+    name: 'Simple (Structured)',  // NEW MODE
+    value: 'simpleStructured',
+    description: 'Add webhooks with individual settings',
+  },
+  {
+    name: 'Manual Configuration',
+    value: 'manual',
+    description: 'Full control over each workflow execution',
+  },
+  {
+    name: 'From Input Data',
+    value: 'fromInput',
+    description: 'Use workflow list from input data',
+  },
+]
+```
+
+#### 2. New Field Structure for Simple (Structured)
+```typescript
+{
+  displayName: 'Webhooks',
+  name: 'simpleWebhooks',
+  type: 'fixedCollection',
+  typeOptions: {
+    multipleValues: true,
+    multipleValueButtonText: 'Add Webhook',
+  },
+  displayOptions: {
+    show: {
+      executionMode: ['simpleStructured'],
+    },
+  },
+  default: {},
+  options: [
+    {
+      name: 'webhookValues',
+      displayName: 'Webhook',
+      values: [
+        {
+          displayName: 'Webhook URL',
+          name: 'url',
+          type: 'string',
+          default: '',
+          required: true,
+          placeholder: 'https://your-n8n.com/webhook/abc-123',
+          description: 'The webhook URL from your workflow',
+        },
+        {
+          displayName: 'Name (Optional)',
+          name: 'name',
+          type: 'string',
+          default: '',
+          placeholder: 'e.g., Process Orders',
+          description: 'Optional name to identify this webhook in results',
+        },
+        {
+          displayName: 'Timeout (Seconds)',
+          name: 'timeout',
+          type: 'number',
+          default: 60,
+          typeOptions: {
+            minValue: 1,
+            maxValue: 3600,
+            numberStepSize: 1,
+          },
+          description: 'Timeout for this webhook (default: 60 seconds)',
+        },
+      ],
+    },
+  ],
+}
+```
+
+#### 3. Execution Logic Update
+```typescript
+// In execute() method
 if (executionMode === 'simple') {
+  // Keep existing multiline text logic
   const webhookUrlsRaw = this.getNodeParameter('webhookUrls', 0) as string;
   const passInputData = this.getNodeParameter('passInputData', 0) as boolean;
   
@@ -136,149 +329,209 @@ if (executionMode === 'simple') {
     timeout: 60,
     retryCount: 0,
   }));
-}
-
-// Manual mode - get webhook configurations
-if (executionMode === 'manual') {
-  const workflowExecutions = this.getNodeParameter('workflowExecutions', 0) as any;
-  const workflows = workflowExecutions.workflowValues || [];
   
-  workflowConfigs = workflows.map((workflow: any, index: number) => {
-    const additionalSettings = workflow.additionalSettings || {};
-    return {
-      webhookUrl: workflow.webhookUrl,
-      executionName: workflow.executionName || `Webhook_${index + 1}`,
-      inputData: workflow.inputData,
-      timeout: additionalSettings.timeout || 60,
-      retryCount: additionalSettings.retryCount || 0,
-    };
-  });
+} else if (executionMode === 'simpleStructured') {
+  // NEW: Structured simple mode
+  const simpleWebhooks = this.getNodeParameter('simpleWebhooks', 0) as any;
+  const webhooks = simpleWebhooks.webhookValues || [];
+  const passInputData = this.getNodeParameter('passInputData', 0) as boolean;
+  
+  if (webhooks.length === 0) {
+    throw new NodeOperationError(this.getNode(), 'No webhooks configured');
+  }
+  
+  workflowConfigs = webhooks.map((webhook: any, index: number) => ({
+    webhookUrl: webhook.url,
+    executionName: webhook.name || `Webhook_${index + 1}`,
+    inputData: passInputData ? items[0]?.json || {} : {},
+    timeout: webhook.timeout || 60,
+    retryCount: 0,
+  }));
+  
+} else if (executionMode === 'manual') {
+  // Keep existing manual mode logic
 }
 ```
 
-## Key Benefits
+#### 4. Benefits of Option B
+- **No Breaking Changes**: Existing workflows continue to work
+- **User Choice**: Users can choose between quick paste (simple) or structured input
+- **Gradual Migration**: Users can migrate at their own pace
+- **Feature Testing**: Can gather feedback before potentially deprecating old mode
 
-1. **Simplicity**: No API authentication needed
-2. **Reliability**: Uses n8n's standard webhook system
-3. **Testability**: Users can test webhook URLs independently
-4. **Performance**: Direct HTTP calls, no API overhead
-5. **Universal**: Works with any n8n instance (cloud or self-hosted)
+#### 5. UI Flow
 
-## User Experience
+**Simple (Webhooks) Mode:**
+- Single multiline text field
+- Quick copy/paste of multiple URLs
+- Best for: Quick setup with many webhooks
 
-### Old Flow (v0.2.x):
-1. Enable n8n API
-2. Create API key
-3. Configure credentials in node
-4. Select workflows from dropdown
-5. Hope API works
+**Simple (Structured) Mode:**
+- "Add Webhook" button
+- Individual fields for each webhook
+- Optional name and timeout per webhook
+- Best for: When you need to identify/customize specific webhooks
 
-### New Flow (v0.3.0):
-1. Add Webhook trigger to sub-workflows
-2. Copy webhook URLs
-3. Paste into Parallel Workflow Orchestrator
-4. Execute!
+**Manual Configuration Mode:**
+- Full control including input data per webhook
+- Individual retry settings
+- Best for: Complex scenarios with different data per webhook
+
+#### 6. Version Strategy
+- Version: 0.3.2 (non-breaking addition)
+- Add deprecation notice in future if Simple (Webhooks) mode becomes redundant
+- Could merge modes in v1.0.0 if one proves superior
 
 ## Testing Checklist
 
-- [ ] Create 3 test workflows with webhook triggers
-- [ ] Test simple mode with multiline URLs
-- [ ] Test manual mode with individual configs
-- [ ] Test invalid URLs (404 response)
-- [ ] Test timeout handling
-- [ ] Test all aggregation modes (array, object, merged, items)
-- [ ] Test concurrency limits
-- [ ] Test retry logic
-- [ ] Test continue on fail option
-- [ ] Test with/without metadata
+- [ ] Simple (Webhooks) mode still works as before
+- [ ] New Simple (Structured) mode appears in dropdown
+- [ ] Can add multiple webhooks with Add Webhook button
+- [ ] Optional name field works correctly
+- [ ] Timeout override works per webhook
+- [ ] Results include webhook names when provided
+- [ ] Pass Input Data toggle works in both simple modes
+- [ ] Error handling for empty webhook list
+- [ ] Migration from simple to structured works smoothly
 
-## Migration Guide for Users
+## Documentation Updates
 
-### For v0.2.x Users:
-**Breaking Change**: This version no longer uses workflow IDs or API credentials.
+### README.md
+- Add section for Simple (Structured) mode
+- Show comparison table of all modes
+- Add screenshots of new UI
 
-1. **Update Sub-workflows**: Each workflow needs a Webhook trigger node
-2. **Get Webhook URLs**: Copy the production URL from each Webhook node
-3. **Update Configuration**: Replace workflow IDs with webhook URLs
-4. **Remove Credentials**: API credentials are no longer needed
+### CHANGELOG.md
+- Document as feature addition (not breaking)
+- Highlight benefits of structured mode
 
-### Example Configuration:
-```
-Old (v0.2.x):
-- Workflow ID: workflow_123
-- API Key: Required
+## Future Considerations
 
-New (v0.3.0):
-- Webhook URL: https://n8n.example.com/webhook/abc-def-ghi
-- API Key: Not needed
-```
+### Phase 1 (v0.3.2)
+- Implement Simple (Structured) mode
+- Keep all existing modes
 
-## Files to Update
+### Phase 2 (v0.4.x)
+- Gather usage metrics/feedback
+- Consider adding retry count to structured mode
+- Add URL validation
 
-1. **Delete**:
-   - `credentials/N8nApi.credentials.ts`
-
-2. **Modify**:
-   - `package.json` - Remove credentials, bump to v0.3.0
-   - `nodes/ParallelWorkflowOrchestrator/ParallelWorkflowOrchestrator.node.ts` - Complete rewrite
-   - `README.md` - New instructions
-   - `CHANGELOG.md` - Document breaking changes
-
-## Version History
-
-### v0.1.0 (2025-09-04)
-- Initial release with mock execution
-
-### v0.2.0 (2025-09-05)
-- Added workflow selector dropdown
-- Improved UI with simple mode
-
-### v0.2.1 (2025-09-06)
-- Attempted REST API implementation (failed)
-
-### v0.2.2 (2025-09-06) 
-- Fixed credential compilation issue
-
-### v0.3.0 (2025-09-05) - CURRENT
-- **BREAKING**: Complete pivot to webhook-based execution
-- Removed API credentials
-- Simplified user experience
-- More reliable execution
+### Phase 3 (v1.0.0)
+- Potentially merge or remove redundant modes
+- Standardize on best approach
 
 ## Implementation Notes
 
-### Why Webhooks Work Better:
-1. **Public Interface**: Webhooks are n8n's public interface for triggering workflows
-2. **No Authentication**: Webhook URLs include their own security token
-3. **Standard HTTP**: Just POST requests, no special API knowledge needed
-4. **Already Tested**: Users can test webhook URLs in browser/Postman
-5. **Fire and Forget**: Webhooks return immediately with response
+### Why Option B is Best
+1. **Risk-Free**: No existing workflows break
+2. **A/B Testing**: Can see which mode users prefer
+3. **Graceful Evolution**: Natural migration path
+4. **Learning Opportunity**: Understand user preferences
 
-### What We Keep:
-- Parallel execution with Promise.all
-- Concurrency limiting
-- Retry logic
-- Timeout handling
-- All aggregation modes
-- Continue on fail option
-- Metadata tracking
+### Technical Considerations
+- Field name `simpleWebhooks` avoids conflict with existing `webhookUrls`
+- Reuse existing execution logic, just different config parsing
+- Output format remains consistent across all modes
 
-### What We Remove:
-- API credential system
-- Workflow ID resolution
-- Complex API error handling
-- Dependency on private/undocumented APIs
+## Code Snippets Reference
 
-## Next Steps
+### Current Simple Mode (keep as-is)
+```typescript
+// Multiline text input
+const webhookUrls = webhookUrlsRaw.split('\n')...
+```
 
-1. ✅ Update scratchpad with plan
-2. ⬜ Delete credential files
-3. ⬜ Update package.json
-4. ⬜ Rewrite node implementation
-5. ⬜ Update documentation
-6. ⬜ Test thoroughly
-7. ⬜ Publish v0.3.0
+### New Simple Structured Mode
+```typescript
+// Structured webhook list
+const webhooks = simpleWebhooks.webhookValues || [];
+webhooks.map(webhook => ({
+  webhookUrl: webhook.url,
+  executionName: webhook.name || `Webhook_${index + 1}`,
+  timeout: webhook.timeout || 60,
+  ...
+}))
+```
 
 ---
 
-*Last Updated: 2025-09-05 - Major Architecture Change*
+---
+
+## Version 0.4.2 - Expression Support for Webhooks
+
+### Date: 2025-09-05
+
+## Feature: Add Expression Fields to Each Webhook
+
+### Implementation Plan
+
+Add expression support to pass dynamic data from input fields to each webhook:
+- JSON field type for n8n expressions
+- Drag-and-drop support from input schema
+- Merge additional data with main input data
+
+### Field Structure for Simple (Structured) Mode
+
+Add to webhook values in fixedCollection:
+```typescript
+{
+  displayName: 'Additional Data',
+  name: 'additionalData',
+  type: 'json',
+  default: '{}',
+  placeholder: 'e.g., { "key": "{{ $json.objectKey }}", "custom": "value" }',
+  description: 'Additional data to send to this webhook. You can drag fields from the input panel. This data will be merged with the main input data.',
+}
+```
+
+### Execution Logic Update
+
+```typescript
+// In simpleStructured mode
+workflowConfigs = webhooks.map((webhook: any, index: number) => {
+  let inputData = passInputData ? items[0]?.json || {} : {};
+  
+  // Parse and merge additional data if provided
+  if (webhook.additionalData) {
+    try {
+      const additionalData = typeof webhook.additionalData === 'string' 
+        ? JSON.parse(webhook.additionalData)
+        : webhook.additionalData;
+      
+      // Deep merge - additional data takes precedence
+      inputData = {
+        ...inputData,
+        ...additionalData
+      };
+    } catch (error) {
+      // If JSON parse fails, just use original input
+      console.warn(`Failed to parse additional data for webhook ${index + 1}`);
+    }
+  }
+  
+  return {
+    webhookUrl: webhook.url,
+    executionName: webhook.name || `Webhook_${index + 1}`,
+    inputData,
+    timeout: webhook.timeout || 60,
+    retryCount: 0,
+    // Include auth fields...
+  };
+});
+```
+
+### Benefits
+- **Dynamic Data**: Pass different values to each webhook
+- **Expression Support**: Use n8n's expression engine with {{ $json.field }}
+- **Drag & Drop**: Drag fields from input schema directly
+- **Override Capability**: Additional data overrides main input for conflicts
+
+### Use Cases
+1. Pass specific document keys from PDF/DOCX input to each webhook
+2. Add webhook-specific metadata or flags
+3. Transform data per webhook without separate nodes
+4. Pass context or identifiers unique to each webhook
+
+---
+
+*Last Updated: 2025-09-05 - Planning v0.4.2*
