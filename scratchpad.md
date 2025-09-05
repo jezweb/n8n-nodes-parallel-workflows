@@ -1,348 +1,284 @@
 # Development Scratchpad
 
-## Current Focus
-n8n community node for parallel workflow orchestration - v0.2.1 Development
-**CRITICAL ISSUE**: Workflows not executing - only mock implementation exists!
+## Version 0.3.0 - Webhook-Based Parallel Workflow Orchestrator
 
-## Key Requirements
-1. ✅ No limit on number of workflows (dynamic)
-2. ✅ True parallel execution using Promise.all
-3. ✅ Configurable input (manual or from data)
-4. ✅ Error resilience
-5. ✅ Result aggregation options
-6. ✅ Progress tracking
-7. ✅ Workflow selector dropdown (v0.2.0)
-8. ✅ Simple mode for easy use (v0.2.0)
-9. ⬜ **ACTUAL WORKFLOW EXECUTION** (v0.2.1 - IN PROGRESS)
+### Date: 2025-09-05
 
-## Technical Decisions
+## Critical Pivot: REST API → Webhook URLs
 
-### Execution Strategy
-- Using Promise.all for true parallelism
-- No worker threads initially (keep it simple)
-- Rely on n8n's internal execution helpers
+### Problem Summary
+1. **API Doesn't Work**: The `/api/v1/workflows/{id}/activate` endpoint doesn't exist in n8n's public API
+2. **Selector Issues**: The `workflowSelector` returns objects with metadata, not simple strings
+3. **Complexity**: API authentication adds unnecessary complexity for users
 
-### Node Properties Structure
+### Solution: Direct Webhook URL Execution
+
+Users will provide webhook URLs from their workflows' Webhook trigger nodes. The Parallel Workflow Orchestrator will:
+1. Execute all webhook URLs simultaneously via HTTP POST
+2. Wait for all responses
+3. Aggregate and return results
+
+This is simpler, more reliable, and uses n8n's intended webhook system.
+
+## Implementation Plan
+
+### Phase 1: Remove API System ✅
+- Delete `credentials/N8nApi.credentials.ts`
+- Remove credential registration from `package.json`
+- Remove credential requirements from node
+
+### Phase 2: Update Node Configuration
+
+#### Simple Mode - New Design:
 ```typescript
-properties: [
-  {
-    name: 'executionMode',
-    options: ['manual', 'fromInput']
-  },
-  {
-    name: 'workflowExecutions',
-    type: 'fixedCollection',
-    multipleValues: true
-  },
-  {
-    name: 'dynamicConfig',
-    displayOptions: { show: { executionMode: ['fromInput'] } }
-  }
-]
-```
-
-### Input Data Format
-```json
 {
-  "workflows": [
-    {
-      "workflowId": "abc123",
-      "inputData": { "key": "value" },
-      "name": "Analysis 1"
-    }
-  ]
+  displayName: 'Webhook URLs',
+  name: 'webhookUrls',
+  type: 'string',
+  typeOptions: {
+    rows: 5,
+  },
+  placeholder: 'https://your-n8n.com/webhook/abc-123\nhttps://your-n8n.com/webhook/def-456',
+  description: 'Enter webhook URLs from your workflows (one per line)',
+  default: '',
+  required: true,
 }
 ```
 
-## Code Snippets
-
-### Parallel Execution Core
+#### Manual Mode - Updated Fields:
 ```typescript
-const promises = workflows.map(async (workflow) => {
-  try {
-    const result = await this.helpers.executeWorkflow(
-      workflow.workflowId,
-      workflow.inputData
-    );
-    return { success: true, result, name: workflow.name };
-  } catch (error) {
-    if (continueOnFail) {
-      return { success: false, error: error.message, name: workflow.name };
-    }
-    throw error;
-  }
-});
-
-const results = await Promise.all(promises);
-```
-
-## Issues & Solutions
-
-### Issue 1: Workflow Access
-**Problem**: How to trigger workflows - internal API vs webhooks?
-**Research Finding**: `this.helpers.executeWorkflow()` NOT available for community nodes!
-**Solution**: Use n8n REST API - this is the standard approach for community nodes
-
-### Issue 2: Progress Tracking
-**Problem**: No built-in way to track Promise.all progress
-**Solution**: Could use Promise.allSettled or custom progress emitter (future enhancement)
-
-### Issue 3: Resource Limits
-**Problem**: Unlimited parallel executions could overwhelm system
-**Solution**: Add optional maxConcurrent parameter with queue system
-
-## Testing Notes
-
-### Test Cases Needed
-1. Single workflow execution
-2. Multiple workflows (5-10)
-3. Large batch (50+)
-4. Error handling (one fails)
-5. All fail scenario
-6. Timeout handling
-7. Different aggregation modes
-
-### Manual Testing Steps
-1. Install node locally
-2. Create test workflows
-3. Test with different configurations
-4. Monitor resource usage
-5. Check error scenarios
-
-## API Design Notes
-
-### Helper Functions Needed
-```typescript
-interface IWorkflowExecution {
-  workflowId: string;
-  inputData: IDataObject;
-  name?: string;
-  timeout?: number;
-  retryCount?: number;
-}
-
-interface IExecutionResult {
-  name: string;
-  success: boolean;
-  data?: IDataObject;
-  error?: string;
-  executionTime: number;
-  workflowId: string;
+{
+  displayName: 'Webhook URL',
+  name: 'webhookUrl',
+  type: 'string',
+  placeholder: 'https://your-n8n.com/webhook/abc-123',
+  description: 'The webhook URL from your workflow\'s Webhook trigger node',
+  default: '',
+  required: true,
 }
 ```
 
-## Performance Considerations
+### Phase 3: Core Execution Logic
 
-### Memory Usage
-- Each workflow execution creates new context
-- Need to monitor for large batches
-- Consider streaming results for very large sets
-
-### Optimization Ideas
-1. Implement p-limit for concurrency control
-2. Add caching for frequently executed workflows
-3. Batch similar workflows together
-4. Resource pooling for execution contexts
-
-## Version 0.2.1 Implementation Plan (ACTIVE)
-
-### Critical Bug Fix: Implement Real Workflow Execution
-**Issue**: Current implementation only simulates workflow execution
-**Root Cause**: Mock `executeWorkflow` method returns fake data
-**Solution**: REST API implementation
-
-### Implementation Steps
-
-#### 1. Create Credential Type
 ```typescript
-// credentials/N8nApi.credentials.ts
-export class N8nApi implements ICredentialType {
-  name = 'n8nApi';
-  displayName = 'n8n API';
-  properties = [
-    {
-      displayName: 'API Key',
-      name: 'apiKey',
-      type: 'string',
-      typeOptions: { password: true },
-      default: '',
-      required: true,
-      description: 'n8n API key (Settings → API → Create API Key)'
-    },
-    {
-      displayName: 'Base URL',
-      name: 'baseUrl',
-      type: 'string',
-      default: 'http://localhost:5678',
-      required: true,
-      placeholder: 'https://your-n8n.example.com',
-      description: 'Your n8n instance URL'
-    }
-  ];
-}
-```
-
-#### 2. Update Node to Require Credentials
-```typescript
-// Add to node description
-credentials: [
-  {
-    name: 'n8nApi',
-    required: true,
-  }
-],
-```
-
-#### 3. Replace Mock executeWorkflow Method
-```typescript
-private async executeWorkflow(
-  workflowId: string, 
-  inputData: IDataObject
-): Promise<IDataObject> {
-  // Get credentials
-  const credentials = await this.getCredentials('n8nApi');
-  const { apiKey, baseUrl } = credentials as IDataObject;
-  
-  // Prepare API call
-  const options = {
-    method: 'POST',
-    headers: {
-      'X-N8N-API-KEY': apiKey as string,
-      'Content-Type': 'application/json',
-    },
-    uri: `${baseUrl}/api/v1/workflows/${workflowId}/activate`,
-    body: inputData,
-    json: true,
-  };
+// Simple webhook execution function
+const executeWebhook = async (config: any, index: number) => {
+  const startTime = Date.now();
+  const executionName = config.executionName || `Webhook_${index + 1}`;
   
   try {
-    // Trigger workflow execution
-    const response = await this.helpers.httpRequest(options);
+    // Parse input data if string
+    let inputData = config.inputData;
+    if (typeof inputData === 'string') {
+      try {
+        inputData = JSON.parse(inputData);
+      } catch (e) {
+        inputData = {};
+      }
+    }
+
+    // Create timeout promise
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => reject(new Error(`Timeout after ${config.timeout} seconds`)), config.timeout * 1000);
+    });
+
+    // Execute webhook
+    const executionPromise = this.helpers.httpRequest({
+      method: 'POST' as const,
+      url: config.webhookUrl,
+      body: inputData,
+      json: true,
+    });
+
+    // Race between execution and timeout
+    const result = await Promise.race([executionPromise, timeoutPromise]);
+
+    return {
+      success: true,
+      webhookUrl: config.webhookUrl,
+      name: executionName,
+      data: result as IDataObject,
+      executionTime: includeMetadata ? Date.now() - startTime : undefined,
+      timestamp: includeMetadata ? new Date().toISOString() : undefined,
+    };
+  } catch (error: any) {
+    if (!continueOnFail) throw error;
     
-    // Poll for execution result (or return immediately for fire-and-forget)
-    return response;
-  } catch (error) {
-    throw new NodeOperationError(
-      this.getNode(),
-      `Failed to execute workflow ${workflowId}: ${error.message}`
-    );
+    return {
+      success: false,
+      webhookUrl: config.webhookUrl,
+      name: executionName,
+      error: error.message || 'Unknown error',
+      executionTime: includeMetadata ? Date.now() - startTime : undefined,
+      timestamp: includeMetadata ? new Date().toISOString() : undefined,
+    };
   }
+};
+```
+
+### Phase 4: Configuration Processing
+
+```typescript
+// Simple mode - parse webhook URLs
+if (executionMode === 'simple') {
+  const webhookUrlsRaw = this.getNodeParameter('webhookUrls', 0) as string;
+  const passInputData = this.getNodeParameter('passInputData', 0) as boolean;
+  
+  const webhookUrls = webhookUrlsRaw
+    .split('\n')
+    .map(url => url.trim())
+    .filter(url => url.length > 0);
+
+  workflowConfigs = webhookUrls.map((url, index) => ({
+    webhookUrl: url,
+    executionName: `Webhook_${index + 1}`,
+    inputData: passInputData ? items[0]?.json || {} : {},
+    timeout: 60,
+    retryCount: 0,
+  }));
+}
+
+// Manual mode - get webhook configurations
+if (executionMode === 'manual') {
+  const workflowExecutions = this.getNodeParameter('workflowExecutions', 0) as any;
+  const workflows = workflowExecutions.workflowValues || [];
+  
+  workflowConfigs = workflows.map((workflow: any, index: number) => {
+    const additionalSettings = workflow.additionalSettings || {};
+    return {
+      webhookUrl: workflow.webhookUrl,
+      executionName: workflow.executionName || `Webhook_${index + 1}`,
+      inputData: workflow.inputData,
+      timeout: additionalSettings.timeout || 60,
+      retryCount: additionalSettings.retryCount || 0,
+    };
+  });
 }
 ```
 
-#### 4. API Endpoints to Use
-- **Activate Workflow**: `POST /api/v1/workflows/{id}/activate`
-- **Execute Workflow**: `POST /api/v1/workflows/{id}/run`
-- **Get Execution Status**: `GET /api/v1/executions/{id}`
+## Key Benefits
 
-#### 5. Execution Modes
-- **Fire and Forget**: Start workflows, don't wait for results
-- **Wait for Completion**: Poll execution status until complete
-- **Webhook Callback**: Sub-workflows call back when done (future)
+1. **Simplicity**: No API authentication needed
+2. **Reliability**: Uses n8n's standard webhook system
+3. **Testability**: Users can test webhook URLs independently
+4. **Performance**: Direct HTTP calls, no API overhead
+5. **Universal**: Works with any n8n instance (cloud or self-hosted)
 
-### Testing Plan
-1. Create API key in n8n instance
-2. Configure credential in node
-3. Test single workflow execution
-4. Test parallel execution of 3+ workflows
-5. Test error handling (invalid workflow ID)
-6. Test timeout scenarios
+## User Experience
 
-### Documentation Updates Needed
-1. Add "Prerequisites" section - API must be enabled
-2. Add "Setup" section - How to create API key
-3. Add security notes about API key storage
-4. Update examples with real workflow IDs
+### Old Flow (v0.2.x):
+1. Enable n8n API
+2. Create API key
+3. Configure credentials in node
+4. Select workflows from dropdown
+5. Hope API works
 
-## Version 0.2.0 Changes
+### New Flow (v0.3.0):
+1. Add Webhook trigger to sub-workflows
+2. Copy webhook URLs
+3. Paste into Parallel Workflow Orchestrator
+4. Execute!
 
-### Key Improvements
-1. **workflowSelector Type**: Changed from string to dropdown selection
-2. **Simple Mode**: New default mode for quick workflow selection
-3. **UI Reorganization**: Advanced options nested under collections
-4. **Better UX**: Helpful notices, improved descriptions
-5. **Breaking Change**: Manual mode now uses selector instead of string
+## Testing Checklist
 
-### User Feedback Addressed
-- "Hard to know what to do" - Added Simple mode
-- "Too technical" - Hid advanced options
-- "Need to know workflow IDs" - Added dropdown selector
+- [ ] Create 3 test workflows with webhook triggers
+- [ ] Test simple mode with multiline URLs
+- [ ] Test manual mode with individual configs
+- [ ] Test invalid URLs (404 response)
+- [ ] Test timeout handling
+- [ ] Test all aggregation modes (array, object, merged, items)
+- [ ] Test concurrency limits
+- [ ] Test retry logic
+- [ ] Test continue on fail option
+- [ ] Test with/without metadata
 
-## Future Features
+## Migration Guide for Users
 
-### V3 Ideas
-1. **Dependency Management**: Define execution order/dependencies
-2. **Conditional Execution**: Skip workflows based on previous results  
-3. **Load Balancing**: Distribute to multiple n8n instances
-4. **Workflow Templates**: Pre-configured parallel patterns
-5. **Visual Progress**: Real-time UI updates
-6. **Analytics**: Execution statistics and performance metrics
+### For v0.2.x Users:
+**Breaking Change**: This version no longer uses workflow IDs or API credentials.
 
-### Integration Ideas
-- Integrate with n8n's queue mode
-- Support for external orchestrators
-- Webhook callbacks for long-running workflows
-- Event streaming for progress updates
+1. **Update Sub-workflows**: Each workflow needs a Webhook trigger node
+2. **Get Webhook URLs**: Copy the production URL from each Webhook node
+3. **Update Configuration**: Replace workflow IDs with webhook URLs
+4. **Remove Credentials**: API credentials are no longer needed
 
-## Questions to Research
+### Example Configuration:
+```
+Old (v0.2.x):
+- Workflow ID: workflow_123
+- API Key: Required
 
-1. ⬜ How does n8n handle concurrent executeWorkflow calls internally?
-2. ⬜ Is there a limit on Promise.all array size in Node.js?
-3. ⬜ Best practice for error aggregation in parallel operations?
-4. ⬜ Can we access n8n's execution status API?
-
-## Development Timeline
-
-### Version 0.1.0 (Completed)
-- [x] Project setup (30 min)
-- [x] Documentation structure (20 min)
-- [x] Core node implementation (1 hr)
-- [x] Error handling (30 min)
-- [x] Testing (1 hr)
-- [x] Examples and docs (30 min)
-- [x] Publishing prep (20 min)
-
-### Version 0.2.0 (Completed) - 2025-09-05
-- [x] Research workflow selector implementation
-- [x] Replace string input with workflowSelector type
-- [x] Add Simple mode as default
-- [x] Reorganize UI with nested options
-- [x] Improve descriptions and add notices
-- [x] Update documentation
-- [x] Publish to npm
-
-## Commands Reference
-
-```bash
-# Development
-npm run dev          # Watch mode
-npm run build        # Build for production
-npm run lint         # Check code style
-npm run format       # Format code
-
-# Testing locally
-npm link             # Link package
-cd ~/.n8n/custom
-npm link n8n-nodes-parallel-workflows
-
-# Publishing
-npm publish
+New (v0.3.0):
+- Webhook URL: https://n8n.example.com/webhook/abc-def-ghi
+- API Key: Not needed
 ```
 
-## Resources
+## Files to Update
 
-- [n8n Node Development](https://docs.n8n.io/integrations/creating-nodes/)
-- [n8n-nodes-starter](https://github.com/n8n-io/n8n-nodes-starter)
-- [n8n Workflow API](https://docs.n8n.io/api/)
+1. **Delete**:
+   - `credentials/N8nApi.credentials.ts`
 
-## Random Thoughts
+2. **Modify**:
+   - `package.json` - Remove credentials, bump to v0.3.0
+   - `nodes/ParallelWorkflowOrchestrator/ParallelWorkflowOrchestrator.node.ts` - Complete rewrite
+   - `README.md` - New instructions
+   - `CHANGELOG.md` - Document breaking changes
 
-- Could this become part of n8n core?
-- Performance comparison vs sequential execution would be interesting
-- Consider creating benchmarking suite
-- Maybe add workflow caching for repeated executions?
-- Visual workflow designer for parallel patterns?
+## Version History
+
+### v0.1.0 (2025-09-04)
+- Initial release with mock execution
+
+### v0.2.0 (2025-09-05)
+- Added workflow selector dropdown
+- Improved UI with simple mode
+
+### v0.2.1 (2025-09-06)
+- Attempted REST API implementation (failed)
+
+### v0.2.2 (2025-09-06) 
+- Fixed credential compilation issue
+
+### v0.3.0 (2025-09-05) - CURRENT
+- **BREAKING**: Complete pivot to webhook-based execution
+- Removed API credentials
+- Simplified user experience
+- More reliable execution
+
+## Implementation Notes
+
+### Why Webhooks Work Better:
+1. **Public Interface**: Webhooks are n8n's public interface for triggering workflows
+2. **No Authentication**: Webhook URLs include their own security token
+3. **Standard HTTP**: Just POST requests, no special API knowledge needed
+4. **Already Tested**: Users can test webhook URLs in browser/Postman
+5. **Fire and Forget**: Webhooks return immediately with response
+
+### What We Keep:
+- Parallel execution with Promise.all
+- Concurrency limiting
+- Retry logic
+- Timeout handling
+- All aggregation modes
+- Continue on fail option
+- Metadata tracking
+
+### What We Remove:
+- API credential system
+- Workflow ID resolution
+- Complex API error handling
+- Dependency on private/undocumented APIs
+
+## Next Steps
+
+1. ✅ Update scratchpad with plan
+2. ⬜ Delete credential files
+3. ⬜ Update package.json
+4. ⬜ Rewrite node implementation
+5. ⬜ Update documentation
+6. ⬜ Test thoroughly
+7. ⬜ Publish v0.3.0
 
 ---
 
-*Last Updated: 2025-09-04 - Active Development*
+*Last Updated: 2025-09-05 - Major Architecture Change*

@@ -16,8 +16,7 @@
     "typeRoots": ["node_modules/@types"]
   },
   "include": [
-    "nodes/**/*.ts",
-    "credentials/**/*.ts"
+    "nodes/**/*.ts"
   ],
   "exclude": [
     "node_modules",

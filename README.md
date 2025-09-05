@@ -1,59 +1,45 @@
 # n8n-nodes-parallel-workflows
 
-An n8n community node that enables true parallel execution of multiple workflows, overcoming n8n's default sequential processing model. Version 0.2.1 brings ACTUAL workflow execution via n8n API!
+⚡ **Version 0.3.0** - Webhook-based parallel execution!
 
-## 🚨 What's New in v0.2.1
+This is an n8n community node that lets you execute multiple webhook URLs in parallel, perfect for orchestrating complex workflow patterns and dramatically improving performance.
 
-- **REAL Workflow Execution**: Actually executes workflows via n8n API (no more simulation!)
-- **API Integration**: Uses official n8n REST API for reliable workflow execution
-- **Secure Credentials**: API keys stored securely using n8n's credential system
-- **Better Error Handling**: Clear error messages for API issues
+## 🚨 Breaking Changes in v0.3.0
 
-## 🎉 What's New in v0.2.0
-
-- **Workflow Selector Dropdown**: No more typing workflow IDs! Select workflows from a dropdown list
-- **Simple Mode**: New default mode - just pick workflows and go
-- **Improved UI**: Cleaner interface with advanced options hidden by default
-- **Better Organization**: Nested options, helpful notices, and improved descriptions
+- **Complete Architecture Change**: Now uses webhook URLs instead of workflow IDs
+- **No API Required**: Removed dependency on n8n API credentials
+- **Simpler Setup**: Just paste webhook URLs - no configuration needed
+- **More Reliable**: Uses n8n's standard webhook system
 
 ## Features
 
-- 🚀 **True Parallel Execution**: Execute unlimited workflows simultaneously
-- 📋 **Easy Workflow Selection**: Pick workflows from dropdown list (NEW!)
-- 🎯 **Three Execution Modes**: Simple, Manual, or Dynamic from input data
-- 💪 **Error Resilience**: Continue processing even if some workflows fail
+- 🚀 **True Parallel Execution**: Execute unlimited webhooks simultaneously  
+- 🔗 **Simple Webhook URLs**: Just paste URLs, one per line
+- 🎯 **Flexible Modes**: Simple mode or detailed manual configuration
+- 💪 **Error Resilience**: Continue processing even if some webhooks fail
 - 📊 **Multiple Aggregation Modes**: Array, object, merged, or individual items
 - ⚡ **Performance Optimized**: Optional concurrency limits and retry logic
 - 📈 **Execution Tracking**: Monitor progress with metadata and timing info
 
 ## Prerequisites
 
-### Required: Enable n8n API
+### Webhook Setup (Required)
 
-1. **Enable the n8n API** in your instance:
-   - Set environment variable: `N8N_API_ENABLED=true`
-   - Or in config file: `api.enabled = true`
-   
-2. **Create an API Key**:
-   - Go to **Settings** → **n8n API**
-   - Click **Create an API key**
-   - Copy the key immediately (you won't see it again)
-   - Save it securely
+Each workflow you want to execute in parallel must have a **Webhook trigger node**:
 
-3. **Configure the Node**:
-   - When adding the Parallel Workflow Orchestrator node
-   - Click on **Credentials** → **Create New**
-   - Enter your API key and n8n instance URL
-   - Save the credential
+1. **Add a Webhook trigger** to each sub-workflow
+2. **Activate the workflows** to generate webhook URLs  
+3. **Copy the webhook URLs** (use production URLs for live execution)
+4. **Paste the URLs** into the Parallel Workflow Orchestrator
 
 ## Installation
 
 ### Via n8n UI
 
 1. Go to **Settings** > **Community Nodes**
-2. Enter: `n8n-nodes-parallel-workflows`
+2. Search for `n8n-nodes-parallel-workflows`
 3. Click **Install**
-4. Restart n8n
+4. The node is ready to use - no credentials needed!
 
 ### Manual Installation
 
@@ -67,49 +53,46 @@ npm install n8n-nodes-parallel-workflows
 # Restart n8n
 ```
 
-### Updating from v0.1.0
-
-```bash
-npm update n8n-nodes-parallel-workflows
-# Then restart n8n
-```
-
 ## Usage
 
-### Quick Start - Simple Mode (NEW! 🎉)
+### Quick Start - Simple Mode
 
 The easiest way to use the node:
 
-1. Add the **Parallel Workflow Orchestrator** node to your workflow
-2. **Execution Mode** is set to "Simple" by default
-3. Click the **Workflows to Execute** dropdown
-4. Select all the workflows you want to run in parallel
-5. Toggle **Pass Input Data** if you want to send the current data to all workflows
-6. Click **Execute Node** - all selected workflows run simultaneously!
+1. **Add Webhook triggers** to your sub-workflows
+2. **Activate** the sub-workflows to get webhook URLs
+3. **Add Parallel Workflow Orchestrator** to your main workflow
+4. **Paste webhook URLs** (one per line) in Simple mode
+5. **Execute** - all webhooks run simultaneously!
 
-![Simple Mode Example](docs/simple-mode.png)
+Example webhook URLs:
+```
+https://your-n8n.com/webhook/abc-def-ghi
+https://your-n8n.com/webhook/jkl-mno-pqr
+https://your-n8n.com/webhook/stu-vwx-yz
+```
 
 ### Manual Configuration Mode
 
-For more control over each workflow:
+For more control over each webhook:
 
 1. Set **Execution Mode** to "Manual Configuration"
-2. Click **Add Workflow** for each workflow
-3. For each workflow configure:
-   - **Workflow**: Select from dropdown
+2. Click **Add Workflow** for each webhook
+3. For each webhook configure:
+   - **Webhook URL**: The full webhook URL
    - **Execution Name**: Optional friendly name for results
-   - **Input Data**: Custom JSON data for this workflow
+   - **Input Data**: Custom JSON data for this webhook
    - **Additional Settings**: Timeout and retry options
 
 ### Dynamic Mode - From Input Data
 
-Pass workflow configurations through input data:
+Pass webhook configurations through input data:
 
 ```json
 {
   "workflows": [
     {
-      "workflowId": "workflow_1",
+      "webhookUrl": "https://your-n8n.com/webhook/abc-123",
       "executionName": "Analysis Task",
       "inputData": {
         "prompt": "Analyze sales data",
@@ -119,7 +102,7 @@ Pass workflow configurations through input data:
       "retryCount": 2
     },
     {
-      "workflowId": "workflow_2",
+      "webhookUrl": "https://your-n8n.com/webhook/def-456",
       "executionName": "Report Generation",
       "inputData": {
         "format": "PDF",
@@ -130,18 +113,16 @@ Pass workflow configurations through input data:
 }
 ```
 
-Then set **Execution Mode** to "From Input Data".
-
 ## Real-World Use Cases
 
 ### 1. Multiple AI API Calls in Parallel
 
 Perfect for calling multiple AI services simultaneously:
 
-**Simple Mode Setup:**
-1. Create individual workflows for each AI task (Gemini, ChatGPT, Claude, etc.)
-2. In Parallel Orchestrator, select all AI workflows from the dropdown
-3. Execute - all AI calls happen simultaneously instead of sequentially
+**Setup:**
+1. Create workflows with Webhook triggers for each AI task
+2. Paste all webhook URLs into Parallel Orchestrator
+3. Execute - all AI calls happen simultaneously
 
 **Time Savings Example:**
 - Sequential: 6 workflows × 3 seconds each = 18 seconds
@@ -151,18 +132,14 @@ Perfect for calling multiple AI services simultaneously:
 ### 2. Batch Data Processing
 
 Process different data sources simultaneously:
-
-**Simple Mode:**
-- Select your CSV processor, API fetcher, and Database query workflows
-- All three data sources are processed in parallel
+- Configure webhooks for CSV processor, API fetcher, and Database queries
+- All data sources are processed in parallel
 - Results automatically combined based on your aggregation setting
 
 ### 3. Multi-Service Health Checks
 
 Check multiple services at once:
-
-**Simple Mode:**
-- Select all your health check workflows
+- Create webhook-triggered health check workflows
 - Set Result Aggregation to "Object (Named)"
 - Get instant status of all services
 
@@ -172,31 +149,25 @@ Check multiple services at once:
 
 | Mode | Description | Best For |
 |------|-------------|----------|
-| **Simple** | Select workflows from dropdown | Quick parallel execution |
-| **Manual** | Configure each workflow individually | Custom settings per workflow |
-| **From Input** | Use workflow list from data | Dynamic/programmatic execution |
+| **Simple** | Paste webhook URLs (one per line) | Quick parallel execution |
+| **Manual** | Configure each webhook individually | Custom settings per webhook |
+| **From Input** | Use webhook list from data | Dynamic/programmatic execution |
 
 ### Options
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| **Continue On Fail** | Boolean | true | Continue if a workflow fails |
+| **Pass Input Data** | Boolean | true | Send input data to all webhooks |
+| **Continue On Fail** | Boolean | true | Continue if a webhook fails |
 | **Result Aggregation** | Select | array | How to combine results |
 
-### Advanced Options (Hidden by Default)
+### Advanced Options
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | **Max Concurrent** | Number | 0 | Limit concurrent executions (0 = unlimited) |
 | **Include Metadata** | Boolean | false | Add execution timing and status |
-| **Global Timeout** | Number | 300 | Maximum seconds for all workflows |
-
-### Result Aggregation Modes
-
-- **Array (Ordered)**: Returns results as an ordered array
-- **Object (Named)**: Returns results with workflow names as keys
-- **Merged**: Deep merges all results into one object
-- **Individual Items**: Each result as a separate n8n item
+| **Global Timeout** | Number | 300 | Maximum seconds for all webhooks |
 
 ## Output Format Examples
 
@@ -206,15 +177,15 @@ Check multiple services at once:
   "results": [
     {
       "success": true,
-      "workflowId": "workflow_1",
-      "name": "Workflow_1",
-      "data": { /* workflow output */ }
+      "webhookUrl": "https://your-n8n.com/webhook/abc-123",
+      "name": "Webhook_1",
+      "data": { /* webhook response */ }
     },
     {
       "success": true,
-      "workflowId": "workflow_2",
-      "name": "Workflow_2",
-      "data": { /* workflow output */ }
+      "webhookUrl": "https://your-n8n.com/webhook/def-456",
+      "name": "Webhook_2",
+      "data": { /* webhook response */ }
     }
   ]
 }
@@ -223,99 +194,66 @@ Check multiple services at once:
 ### Object Aggregation
 ```json
 {
-  "Workflow_1": {
+  "Webhook_1": {
     "success": true,
-    "data": { /* workflow output */ }
+    "data": { /* webhook response */ }
   },
-  "Workflow_2": {
+  "Webhook_2": {
     "success": true,
-    "data": { /* workflow output */ }
+    "data": { /* webhook response */ }
   }
 }
 ```
 
-## Migration Guide (v0.1.0 → v0.2.0)
+## Migration from v0.2.x
 
 ### Breaking Changes
 
-1. **Manual Mode Workflow Field**: 
-   - Old: `type: 'string'` (required typing workflow ID)
-   - New: `type: 'workflowSelector'` (dropdown selection)
+This version completely changes how the node works:
+
+**Old (v0.2.x):**
+- Required n8n API credentials
+- Used workflow IDs
+- Complex API setup
+
+**New (v0.3.0):**
+- No credentials needed
+- Uses webhook URLs
+- Simple copy/paste setup
 
 ### How to Migrate
 
-1. Update the node: `npm update n8n-nodes-parallel-workflows`
-2. Restart n8n
-3. Open existing workflows using this node
-4. For Manual mode configurations:
-   - Click on the workflow field
-   - Select the workflow from the dropdown (instead of typing the ID)
-5. Consider switching to Simple mode for easier configuration
-
-### New Features to Try
-
-- **Simple Mode**: Much easier for basic use cases
-- **Workflow Dropdown**: No need to know workflow IDs
-- **Cleaner UI**: Advanced options are now nested
+1. **Update your sub-workflows**: Add Webhook trigger nodes
+2. **Activate the workflows** to generate webhook URLs
+3. **Copy webhook URLs** from each workflow
+4. **Update Parallel Orchestrator**: Replace workflow IDs with webhook URLs
+5. **Remove API credentials** - no longer needed
 
 ## Performance Tips
 
-1. **Use Simple Mode** when all workflows need the same input data
+1. **Use Simple Mode** when all webhooks need the same input data
 2. **Set Max Concurrent** if you have resource constraints
 3. **Use appropriate timeouts** to prevent hanging executions
-4. **Enable Continue on Fail** for non-critical workflows
+4. **Enable Continue on Fail** for non-critical webhooks
+5. **Test webhook URLs** independently before adding to orchestrator
 
 ## Troubleshooting
 
 ### Common Issues
 
-**Q: The workflow dropdown is empty**
-- Ensure you have workflows saved in your n8n instance
-- Check that you have permission to access the workflows
-
-**Q: Workflows aren't executing in parallel**
-- Ensure your n8n instance has sufficient resources
-- Check if you've set a `maxConcurrent` limit in Advanced options
+**Q: Webhooks aren't executing**
+- Ensure sub-workflows are activated
+- Check webhook URLs are correct (use production URLs)
+- Verify webhooks are accessible from your n8n instance
 
 **Q: Getting timeout errors**
-- Increase the timeout values in Additional Settings (Manual mode)
-- Or increase Global Timeout in Advanced options
+- Increase timeout values in Additional Settings
+- Check if sub-workflows are taking longer than expected
+- Increase Global Timeout in Advanced options
 
-**Q: Can't find Advanced options**
-- Click on "Options" then "Advanced" to reveal them
-
-## Examples
-
-### Example 1: Simple Parallel AI Calls
-
-```javascript
-// Simple Mode Configuration:
-Execution Mode: Simple
-Workflows to Execute: [
-  "Gemini Analysis",
-  "ChatGPT Summary", 
-  "Claude Review",
-  "Perplexity Research"
-]
-Pass Input Data: ✓
-```
-
-### Example 2: Manual Configuration with Different Inputs
-
-```javascript
-// Manual Mode Configuration:
-Execution Mode: Manual Configuration
-
-Workflow 1:
-- Workflow: "Process Sales Data"
-- Input Data: { "quarter": "Q4", "year": 2024 }
-- Timeout: 30 seconds
-
-Workflow 2:
-- Workflow: "Generate Report"
-- Input Data: { "format": "PDF", "template": "executive" }
-- Timeout: 60 seconds
-```
+**Q: Results are empty**
+- Ensure webhook workflows have a Respond to Webhook node
+- Check that webhooks are returning data properly
 
 ## Development
 
@@ -328,17 +266,6 @@ npm run lint        # Check code style
 npm run format      # Format code
 ```
 
-### Testing
-
-```bash
-# Link for local testing
-npm link
-cd ~/.n8n/custom
-npm link n8n-nodes-parallel-workflows
-
-# Restart n8n to load changes
-```
-
 ## Contributing
 
 Contributions are welcome! Please:
@@ -347,14 +274,6 @@ Contributions are welcome! Please:
 2. Create a feature branch
 3. Add tests for new features
 4. Submit a pull request
-
-## Roadmap
-
-- [ ] Dynamic workflow input mapping
-- [ ] Visual progress indicators
-- [ ] Workflow dependency management
-- [ ] Built-in workflow templates
-- [ ] Performance analytics
 
 ## License
 
@@ -369,13 +288,13 @@ MIT - See [LICENSE](LICENSE) file
 
 ## Changelog
 
-See [CHANGELOG.md](CHANGELOG.md) for version history.
+See [CHANGELOG.md](CHANGELOG.md) for full version history.
 
-### Latest Version (0.2.0)
-- Workflow selector dropdown for easy workflow selection
-- New Simple mode as default
-- Improved UI with nested advanced options
-- Better error messages and descriptions
+### Latest Version (0.3.0)
+- Complete rewrite to use webhook URLs
+- Removed API credential requirements
+- Simplified user experience
+- More reliable execution
 
 ---
 

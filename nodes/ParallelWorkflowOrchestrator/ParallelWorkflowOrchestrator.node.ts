@@ -18,25 +18,19 @@ export class ParallelWorkflowOrchestrator implements INodeType {
     icon: 'fa:project-diagram',
     group: ['transform'],
     version: 1,
-    subtitle: '={{$parameter["executionMode"]}}',
-    description: 'Execute multiple workflows in parallel and aggregate results',
+    subtitle: '={{$parameter["executionMode"] === "simple" ? "Simple Mode" : "Manual Configuration"}}',
+    description: 'Execute multiple webhook URLs in parallel and aggregate results',
     defaults: {
       name: 'Parallel Workflow Orchestrator',
     },
     inputs: [NodeConnectionType.Main],
     outputs: [NodeConnectionType.Main],
-    credentials: [
-      {
-        name: 'n8nApi',
-        required: true,
-      },
-    ],
     properties: [
       {
         displayName: '',
         name: 'notice',
         type: 'notice',
-        default: '⚠️ Requires n8n API credentials. Create an API key in Settings → n8n API. Select workflows to execute them in parallel for better performance.',
+        default: '⚠️ Each workflow must have a Webhook trigger node. Copy the webhook URLs and paste them below to execute workflows in parallel.',
       },
       {
         displayName: 'Execution Mode',
@@ -64,11 +58,11 @@ export class ParallelWorkflowOrchestrator implements INodeType {
       },
       // Simple mode - just select workflows
       {
-        displayName: 'Workflows to Execute',
-        name: 'simpleWorkflows',
-        type: 'workflowSelector',
+        displayName: 'Webhook URLs',
+        name: 'webhookUrls',
+        type: 'string',
         typeOptions: {
-          multipleValues: true,
+          rows: 5,
         },
         displayOptions: {
           show: {
@@ -77,7 +71,8 @@ export class ParallelWorkflowOrchestrator implements INodeType {
         },
         default: [],
         required: true,
-        description: 'Select the workflows to execute in parallel',
+        placeholder: 'https://your-n8n.com/webhook/abc-123\nhttps://your-n8n.com/webhook/def-456',
+        description: 'Enter webhook URLs from your workflows (one per line)',
       },
       {
         displayName: 'Pass Input Data to Workflows',
@@ -113,12 +108,13 @@ export class ParallelWorkflowOrchestrator implements INodeType {
             name: 'workflowValues',
             values: [
               {
-                displayName: 'Workflow',
-                name: 'workflowId',
-                type: 'workflowSelector',
+                displayName: 'Webhook URL',
+                name: 'webhookUrl',
+                type: 'string',
                 default: '',
                 required: true,
-                description: 'Select the workflow to execute',
+                placeholder: 'https://your-n8n.com/webhook/abc-123',
+                description: 'The webhook URL from your workflow\'s Webhook trigger node',
               },
               {
                 displayName: 'Execution Name',
@@ -277,95 +273,10 @@ export class ParallelWorkflowOrchestrator implements INodeType {
     ],
   };
 
-  methods = {
-    listSearch: {
-      async searchWorkflows(this: ILoadOptionsFunctions): Promise<INodeListSearchResult> {
-        // This method would be called to populate the workflow selector
-        // In a real implementation, this would fetch the list of workflows
-        // For now, returning a placeholder
-        return {
-          results: [] as INodeListSearchItems[],
-        };
-      },
-    },
-  };
 
   async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
     const items = this.getInputData();
     const executionMode = this.getNodeParameter('executionMode', 0) as string;
-    
-    // Helper function to execute workflow via API
-    const executeWorkflowViaApi = async (
-      workflowId: string, 
-      inputData: IDataObject
-    ): Promise<IDataObject> => {
-      // Get API credentials
-      const credentials = await this.getCredentials('n8nApi');
-      
-      if (!credentials) {
-        throw new NodeOperationError(
-          this.getNode(),
-          'n8n API credentials are required. Please configure them in the node settings.'
-        );
-      }
-      
-      const apiKey = credentials.apiKey as string;
-      const baseUrl = (credentials.baseUrl as string).replace(/\/$/, ''); // Remove trailing slash if present
-      
-      // Prepare the request options
-      const options = {
-        method: 'POST' as const,
-        headers: {
-          'X-N8N-API-KEY': apiKey,
-          'Content-Type': 'application/json',
-        },
-        url: `${baseUrl}/api/v1/workflows/${workflowId}/activate`,
-        body: {
-          workflowData: inputData,
-        },
-        json: true
-      };
-      
-      try {
-        // Execute the workflow via API
-        const response = await this.helpers.httpRequest(options);
-        
-        // Return the execution response
-        return {
-          executionId: response.id || `exec_${Date.now()}`,
-          workflowId,
-          status: 'started',
-          mode: response.mode || 'trigger',
-          startedAt: response.startedAt || new Date().toISOString(),
-          workflowData: response.workflowData || {},
-          data: inputData,
-        };
-      } catch (error: any) {
-        // Handle specific error cases
-        if (error.statusCode === 401) {
-          throw new NodeOperationError(
-            this.getNode(),
-            'Invalid API key. Please check your n8n API credentials.'
-          );
-        } else if (error.statusCode === 404) {
-          throw new NodeOperationError(
-            this.getNode(),
-            `Workflow with ID "${workflowId}" not found. Please check the workflow ID.`
-          );
-        } else if (error.statusCode === 400) {
-          throw new NodeOperationError(
-            this.getNode(),
-            `Bad request for workflow "${workflowId}": ${error.message}`
-          );
-        }
-        
-        // Generic error
-        throw new NodeOperationError(
-          this.getNode(),
-          `Failed to execute workflow "${workflowId}": ${error.message || 'Unknown error'}`
-        );
-      }
-    };
     const options = this.getNodeParameter('options', 0) as IDataObject;
     const advanced = (options.advanced as IDataObject) || {};
     
@@ -379,13 +290,22 @@ export class ParallelWorkflowOrchestrator implements INodeType {
 
     // Get workflow configurations based on execution mode
     if (executionMode === 'simple') {
-      // Simple mode - just workflow IDs with same input data
-      const simpleWorkflows = this.getNodeParameter('simpleWorkflows', 0) as string[];
+      // Simple mode - parse webhook URLs from multiline string
+      const webhookUrlsRaw = this.getNodeParameter('webhookUrls', 0) as string;
       const passInputData = this.getNodeParameter('passInputData', 0) as boolean;
       
-      workflowConfigs = simpleWorkflows.map((workflowId, index) => ({
-        workflowId,
-        executionName: `Workflow_${index + 1}`,
+      const webhookUrls = webhookUrlsRaw
+        .split('\n')
+        .map(url => url.trim())
+        .filter(url => url.length > 0);
+
+      if (webhookUrls.length === 0) {
+        throw new NodeOperationError(this.getNode(), 'No webhook URLs provided');
+      }
+      
+      workflowConfigs = webhookUrls.map((url, index) => ({
+        webhookUrl: url,
+        executionName: `Webhook_${index + 1}`,
         inputData: passInputData ? items[0]?.json || {} : {},
         timeout: 60,
         retryCount: 0,
@@ -395,11 +315,11 @@ export class ParallelWorkflowOrchestrator implements INodeType {
       const workflowExecutions = this.getNodeParameter('workflowExecutions', 0) as any;
       const workflows = workflowExecutions.workflowValues || [];
       
-      workflowConfigs = workflows.map((workflow: any) => {
+      workflowConfigs = workflows.map((workflow: any, index: number) => {
         const additionalSettings = workflow.additionalSettings || {};
         return {
-          workflowId: workflow.workflowId,
-          executionName: workflow.executionName || workflow.workflowId,
+          webhookUrl: workflow.webhookUrl,
+          executionName: workflow.executionName || `Webhook_${index + 1}`,
           inputData: workflow.inputData,
           timeout: additionalSettings.timeout || 60,
           retryCount: additionalSettings.retryCount || 0,
@@ -445,13 +365,18 @@ export class ParallelWorkflowOrchestrator implements INodeType {
           setTimeout(() => reject(new Error(`Workflow timeout after ${config.timeout || 60} seconds`)), timeout);
         });
 
-        // Execute workflow with timeout
-        const executionPromise = executeWorkflowViaApi(config.workflowId, inputData);
+        // Execute webhook with timeout
+        const executionPromise = this.helpers.httpRequest({
+          method: 'POST' as const,
+          url: config.webhookUrl,
+          body: inputData,
+          json: true,
+        });
         const result = await Promise.race([executionPromise, timeoutPromise]);
 
         const executionResult: IDataObject = {
           success: true,
-          workflowId: config.workflowId,
+          webhookUrl: config.webhookUrl,
           name: executionName,
           data: result as IDataObject,
         };
@@ -465,7 +390,7 @@ export class ParallelWorkflowOrchestrator implements INodeType {
       } catch (error: any) {
         const executionResult: IDataObject = {
           success: false,
-          workflowId: config.workflowId,
+          webhookUrl: config.webhookUrl,
           name: executionName,
           error: error.message || 'Unknown error',
         };

@@ -5,6 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2025-09-05
+
+### Changed - BREAKING
+- **COMPLETE REWRITE**: Node now uses webhook URLs instead of workflow IDs
+- **Removed API dependency**: No longer requires n8n API credentials
+- **Simplified architecture**: Direct webhook calls instead of complex API integration
+- **Changed all field types**: From workflow selectors to webhook URL strings
+
+### Added
+- Webhook URL support for true parallel execution
+- Simplified setup process - just paste URLs
+- Better error messages for webhook failures
+- Support for multiline webhook URL input
+
+### Removed
+- n8n API credential system
+- Workflow selector dropdowns
+- API authentication logic
+- Complex workflow ID resolution
+
+### Migration Notes
+- Users must add Webhook triggers to all sub-workflows
+- Copy webhook URLs and paste them into the node
+- Remove any API credentials from the node configuration
+- This is a breaking change requiring workflow modifications
+
 ## [0.2.2] - 2025-09-06
 
 ### Fixed
