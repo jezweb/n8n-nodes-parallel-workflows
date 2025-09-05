@@ -15,7 +15,7 @@ export class ParallelWorkflowOrchestrator implements INodeType {
   description: INodeTypeDescription = {
     displayName: 'Parallel Workflow Orchestrator',
     name: 'parallelWorkflowOrchestrator',
-    icon: 'fa:project-diagram',
+    icon: 'fa:sitemap',
     group: ['transform'],
     version: 1,
     subtitle: '={{$parameter["executionMode"] === "simple" ? "Simple Mode" : "Manual Configuration"}}',
@@ -30,7 +30,7 @@ export class ParallelWorkflowOrchestrator implements INodeType {
         displayName: '',
         name: 'notice',
         type: 'notice',
-        default: '⚠️ Each workflow must have a Webhook trigger node. Copy the webhook URLs and paste them below to execute workflows in parallel.',
+        default: '⚠️ Each workflow must have a Webhook trigger node. Copy the production webhook URLs and paste them below (one per line) to execute workflows in parallel.',
       },
       {
         displayName: 'Execution Mode',
@@ -38,9 +38,9 @@ export class ParallelWorkflowOrchestrator implements INodeType {
         type: 'options',
         options: [
           {
-            name: 'Simple (Select Workflows)',
+            name: 'Simple (Webhooks)',
             value: 'simple',
-            description: 'Select workflows from dropdown - easiest to use',
+            description: 'Paste webhook URLs - easiest to use',
           },
           {
             name: 'Manual Configuration',
@@ -203,7 +203,7 @@ export class ParallelWorkflowOrchestrator implements INodeType {
             description: 'Whether to continue executing other workflows if one fails',
           },
           {
-            displayName: 'Result Aggregation',
+            displayName: 'Output Mode',
             name: 'resultAggregation',
             type: 'options',
             options: [

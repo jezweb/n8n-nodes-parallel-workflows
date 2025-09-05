@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.1] - 2025-09-05
+
+### Fixed
+- Icon now displays correctly using FontAwesome sitemap icon
+
+### Changed
+- Renamed "Result Aggregation" to "Output Mode" for clarity
+- Updated "Simple (Select Workflows)" to "Simple (Webhooks)" to reflect new functionality
+- Improved notice text to specify using production webhook URLs
+
+### Improved
+- Better labeling throughout the interface
+- Clearer descriptions for user guidance
+
 ## [0.3.0] - 2025-09-05
 
 ### Changed - BREAKING
