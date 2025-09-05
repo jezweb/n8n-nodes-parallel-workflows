@@ -1,6 +1,13 @@
 # n8n-nodes-parallel-workflows
 
-An n8n community node that enables true parallel execution of multiple workflows, overcoming n8n's default sequential processing model. Version 0.2.0 brings major UX improvements with workflow selector dropdowns!
+An n8n community node that enables true parallel execution of multiple workflows, overcoming n8n's default sequential processing model. Version 0.2.1 brings ACTUAL workflow execution via n8n API!
+
+## 🚨 What's New in v0.2.1
+
+- **REAL Workflow Execution**: Actually executes workflows via n8n API (no more simulation!)
+- **API Integration**: Uses official n8n REST API for reliable workflow execution
+- **Secure Credentials**: API keys stored securely using n8n's credential system
+- **Better Error Handling**: Clear error messages for API issues
 
 ## 🎉 What's New in v0.2.0
 
@@ -18,6 +25,26 @@ An n8n community node that enables true parallel execution of multiple workflows
 - 📊 **Multiple Aggregation Modes**: Array, object, merged, or individual items
 - ⚡ **Performance Optimized**: Optional concurrency limits and retry logic
 - 📈 **Execution Tracking**: Monitor progress with metadata and timing info
+
+## Prerequisites
+
+### Required: Enable n8n API
+
+1. **Enable the n8n API** in your instance:
+   - Set environment variable: `N8N_API_ENABLED=true`
+   - Or in config file: `api.enabled = true`
+   
+2. **Create an API Key**:
+   - Go to **Settings** → **n8n API**
+   - Click **Create an API key**
+   - Copy the key immediately (you won't see it again)
+   - Save it securely
+
+3. **Configure the Node**:
+   - When adding the Parallel Workflow Orchestrator node
+   - Click on **Credentials** → **Create New**
+   - Enter your API key and n8n instance URL
+   - Save the credential
 
 ## Installation
 

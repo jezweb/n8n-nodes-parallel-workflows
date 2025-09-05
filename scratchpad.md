@@ -1,7 +1,8 @@
 # Development Scratchpad
 
 ## Current Focus
-n8n community node for parallel workflow orchestration - v0.2.0 Released!
+n8n community node for parallel workflow orchestration - v0.2.1 Development
+**CRITICAL ISSUE**: Workflows not executing - only mock implementation exists!
 
 ## Key Requirements
 1. ✅ No limit on number of workflows (dynamic)
@@ -12,6 +13,7 @@ n8n community node for parallel workflow orchestration - v0.2.0 Released!
 6. ✅ Progress tracking
 7. ✅ Workflow selector dropdown (v0.2.0)
 8. ✅ Simple mode for easy use (v0.2.0)
+9. ⬜ **ACTUAL WORKFLOW EXECUTION** (v0.2.1 - IN PROGRESS)
 
 ## Technical Decisions
 
@@ -78,7 +80,8 @@ const results = await Promise.all(promises);
 
 ### Issue 1: Workflow Access
 **Problem**: How to trigger workflows - internal API vs webhooks?
-**Solution**: Start with internal helpers, add webhook support later
+**Research Finding**: `this.helpers.executeWorkflow()` NOT available for community nodes!
+**Solution**: Use n8n REST API - this is the standard approach for community nodes
 
 ### Issue 2: Progress Tracking
 **Problem**: No built-in way to track Promise.all progress
@@ -140,6 +143,116 @@ interface IExecutionResult {
 2. Add caching for frequently executed workflows
 3. Batch similar workflows together
 4. Resource pooling for execution contexts
+
+## Version 0.2.1 Implementation Plan (ACTIVE)
+
+### Critical Bug Fix: Implement Real Workflow Execution
+**Issue**: Current implementation only simulates workflow execution
+**Root Cause**: Mock `executeWorkflow` method returns fake data
+**Solution**: REST API implementation
+
+### Implementation Steps
+
+#### 1. Create Credential Type
+```typescript
+// credentials/N8nApi.credentials.ts
+export class N8nApi implements ICredentialType {
+  name = 'n8nApi';
+  displayName = 'n8n API';
+  properties = [
+    {
+      displayName: 'API Key',
+      name: 'apiKey',
+      type: 'string',
+      typeOptions: { password: true },
+      default: '',
+      required: true,
+      description: 'n8n API key (Settings → API → Create API Key)'
+    },
+    {
+      displayName: 'Base URL',
+      name: 'baseUrl',
+      type: 'string',
+      default: 'http://localhost:5678',
+      required: true,
+      placeholder: 'https://your-n8n.example.com',
+      description: 'Your n8n instance URL'
+    }
+  ];
+}
+```
+
+#### 2. Update Node to Require Credentials
+```typescript
+// Add to node description
+credentials: [
+  {
+    name: 'n8nApi',
+    required: true,
+  }
+],
+```
+
+#### 3. Replace Mock executeWorkflow Method
+```typescript
+private async executeWorkflow(
+  workflowId: string, 
+  inputData: IDataObject
+): Promise<IDataObject> {
+  // Get credentials
+  const credentials = await this.getCredentials('n8nApi');
+  const { apiKey, baseUrl } = credentials as IDataObject;
+  
+  // Prepare API call
+  const options = {
+    method: 'POST',
+    headers: {
+      'X-N8N-API-KEY': apiKey as string,
+      'Content-Type': 'application/json',
+    },
+    uri: `${baseUrl}/api/v1/workflows/${workflowId}/activate`,
+    body: inputData,
+    json: true,
+  };
+  
+  try {
+    // Trigger workflow execution
+    const response = await this.helpers.httpRequest(options);
+    
+    // Poll for execution result (or return immediately for fire-and-forget)
+    return response;
+  } catch (error) {
+    throw new NodeOperationError(
+      this.getNode(),
+      `Failed to execute workflow ${workflowId}: ${error.message}`
+    );
+  }
+}
+```
+
+#### 4. API Endpoints to Use
+- **Activate Workflow**: `POST /api/v1/workflows/{id}/activate`
+- **Execute Workflow**: `POST /api/v1/workflows/{id}/run`
+- **Get Execution Status**: `GET /api/v1/executions/{id}`
+
+#### 5. Execution Modes
+- **Fire and Forget**: Start workflows, don't wait for results
+- **Wait for Completion**: Poll execution status until complete
+- **Webhook Callback**: Sub-workflows call back when done (future)
+
+### Testing Plan
+1. Create API key in n8n instance
+2. Configure credential in node
+3. Test single workflow execution
+4. Test parallel execution of 3+ workflows
+5. Test error handling (invalid workflow ID)
+6. Test timeout scenarios
+
+### Documentation Updates Needed
+1. Add "Prerequisites" section - API must be enabled
+2. Add "Setup" section - How to create API key
+3. Add security notes about API key storage
+4. Update examples with real workflow IDs
 
 ## Version 0.2.0 Changes
 

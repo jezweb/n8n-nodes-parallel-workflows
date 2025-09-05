@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1] - 2025-09-06
+
+### Fixed
+- **CRITICAL**: Workflows now actually execute! Previous versions only simulated execution
+- Implemented real workflow execution using n8n REST API
+
+### Added
+- n8n API credential type for secure API key storage
+- Proper error handling for API failures (401, 404, 400 errors)
+- Clear setup instructions for API configuration
+- Prerequisites section in documentation
+
+### Changed
+- Node now requires n8n API credentials to function
+- Updated notice to inform users about API requirement
+
 ## [0.2.0] - 2025-09-05
 
 ### Added

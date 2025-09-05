@@ -25,12 +25,18 @@ export class ParallelWorkflowOrchestrator implements INodeType {
     },
     inputs: [NodeConnectionType.Main],
     outputs: [NodeConnectionType.Main],
+    credentials: [
+      {
+        name: 'n8nApi',
+        required: true,
+      },
+    ],
     properties: [
       {
         displayName: '',
         name: 'notice',
         type: 'notice',
-        default: 'Select workflows from the dropdown to execute them in parallel. All selected workflows will run simultaneously for better performance.',
+        default: '⚠️ Requires n8n API credentials. Create an API key in Settings → n8n API. Select workflows to execute them in parallel for better performance.',
       },
       {
         displayName: 'Execution Mode',
@@ -287,6 +293,79 @@ export class ParallelWorkflowOrchestrator implements INodeType {
   async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
     const items = this.getInputData();
     const executionMode = this.getNodeParameter('executionMode', 0) as string;
+    
+    // Helper function to execute workflow via API
+    const executeWorkflowViaApi = async (
+      workflowId: string, 
+      inputData: IDataObject
+    ): Promise<IDataObject> => {
+      // Get API credentials
+      const credentials = await this.getCredentials('n8nApi');
+      
+      if (!credentials) {
+        throw new NodeOperationError(
+          this.getNode(),
+          'n8n API credentials are required. Please configure them in the node settings.'
+        );
+      }
+      
+      const apiKey = credentials.apiKey as string;
+      const baseUrl = (credentials.baseUrl as string).replace(/\/$/, ''); // Remove trailing slash if present
+      
+      // Prepare the request options
+      const options = {
+        method: 'POST' as const,
+        headers: {
+          'X-N8N-API-KEY': apiKey,
+          'Content-Type': 'application/json',
+        },
+        url: `${baseUrl}/api/v1/workflows/${workflowId}/activate`,
+        body: {
+          workflowData: inputData,
+        },
+        json: true
+      };
+      
+      try {
+        // Execute the workflow via API
+        const response = await this.helpers.httpRequest(options);
+        
+        // Return the execution response
+        return {
+          executionId: response.id || `exec_${Date.now()}`,
+          workflowId,
+          status: 'started',
+          mode: response.mode || 'trigger',
+          startedAt: response.startedAt || new Date().toISOString(),
+          workflowData: response.workflowData || {},
+          data: inputData,
+        };
+      } catch (error: any) {
+        // Handle specific error cases
+        if (error.statusCode === 401) {
+          throw new NodeOperationError(
+            this.getNode(),
+            'Invalid API key. Please check your n8n API credentials.'
+          );
+        } else if (error.statusCode === 404) {
+          throw new NodeOperationError(
+            this.getNode(),
+            `Workflow with ID "${workflowId}" not found. Please check the workflow ID.`
+          );
+        } else if (error.statusCode === 400) {
+          throw new NodeOperationError(
+            this.getNode(),
+            `Bad request for workflow "${workflowId}": ${error.message}`
+          );
+        }
+        
+        // Generic error
+        throw new NodeOperationError(
+          this.getNode(),
+          `Failed to execute workflow "${workflowId}": ${error.message || 'Unknown error'}`
+        );
+      }
+    };
     const options = this.getNodeParameter('options', 0) as IDataObject;
     const advanced = (options.advanced as IDataObject) || {};
     
@@ -367,7 +446,7 @@ export class ParallelWorkflowOrchestrator implements INodeType {
         });
 
         // Execute workflow with timeout
-        const executionPromise = this.executeWorkflow(config.workflowId, inputData);
+        const executionPromise = executeWorkflowViaApi(config.workflowId, inputData);
         const result = await Promise.race([executionPromise, timeoutPromise]);
 
         const executionResult: IDataObject = {
@@ -512,23 +591,4 @@ export class ParallelWorkflowOrchestrator implements INodeType {
     return [returnData];
   }
 
-  private async executeWorkflow(workflowId: string, inputData: IDataObject): Promise<IDataObject> {
-    // This is a simplified version - in production, this would use n8n's actual API
-    // or helper functions to execute workflows
-    
-    // For now, we'll simulate the execution
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve({
-          executionId: `exec_${Date.now()}`,
-          workflowId,
-          status: 'success',
-          output: {
-            message: `Workflow ${workflowId} executed successfully`,
-            inputReceived: inputData,
-          },
-        });
-      }, Math.random() * 2000 + 1000); // Simulate 1-3 second execution
-    });
-  }
 }
